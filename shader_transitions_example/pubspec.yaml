@@ -54,17 +54,18 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
   shaders:
-    - shaders/crosshatch.frag
     - shaders/radial.frag
+    - shaders/grid_flip.frag
+    - shaders/page_turn.frag
+    - shaders/morph.frag
+    - shaders/crosshatch.frag
     - shaders/blur_zoom_sweep.frag
     - shaders/color_distance.frag
     - shaders/directional_warp.frag
     - shaders/dreamy.frag
-    - shaders/morph.frag
     - shaders/swirl.frag
     - shaders/perlin.frag
     - shaders/stereo_viewer.frag
-    - shaders/page_turn.frag
     - shaders/glitch_memories.frag
     - shaders/bounce.frag
     - shaders/diamond_sweep.frag

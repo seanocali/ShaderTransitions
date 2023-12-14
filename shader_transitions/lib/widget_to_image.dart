@@ -12,9 +12,15 @@ class WidgetToImage{
 
     Uint8List pixels = Uint8List.fromList([0, 0, 0, 0]); // 1x1 transparent pixel (R=0, G=0, B=0, A=0)
 
-    ui.decodeImageFromPixels(pixels, 1, 1, ui.PixelFormat.rgba8888, (ui.Image image) {
-      completer.complete(image);
-    });
+    try{
+      ui.decodeImageFromPixels(pixels, 1, 1, ui.PixelFormat.rgba8888, (ui.Image image) {
+        completer.complete(image);
+      });
+    }
+    catch (e){
+      debugPrint('Failed to decode image from bytes');
+      completer.completeError(e);
+    }
 
     return completer.future;
   }
@@ -74,14 +80,12 @@ class WidgetToImage{
       container: boundary,
       child: Directionality(
         textDirection: TextDirection.ltr,
-        child: ConstrainedBox( // Use ConstrainedBox to apply the constraints
+        child: ConstrainedBox(
           constraints: constraints ?? const BoxConstraints.tightFor(),
           child: widget,
         ),
       ),
     ).attachToRenderTree(buildOwner);
-
-    ui.Image? capturedImage;
     final completer = Completer<RenderRepaintBoundary>();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {

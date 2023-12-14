@@ -12,7 +12,6 @@ uniform sampler2D uTexture1;
 out vec4 fragColor;
 ivec2 size = ivec2(4);
 
-
 vec4 getFromColor(vec2 uv) {
  return texture(uTexture1, vec2(uv.x, 1 - uv.y));
 }

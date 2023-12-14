@@ -6,19 +6,17 @@ import 'package:flutter/rendering.dart';
 import '/shader_canvas.dart';
 import '/widget_to_image.dart';
 
+//ignore: must_be_immutable
 class ShaderTransition extends StatefulWidget {
   /// Only used when in an AnimatedSwitcher and when the shader animates image captures of widgets (textures).
   /// Store the captured image of this ShaderTransition's child so that the next incoming ShaderTransition can use it.
-  /// Map key is the hashCode of the parent AnimatedSwitcher.
+  /// Map key is the stateKey of the parent AnimatedSwitcher.
   static final _savedImagesMap = HashMap<String, List<ui.Image>>();
-  static final _activeInstances = HashMap<String, List<int>>();
+  static final _activeInstances = HashMap<String, List<Key>>();
 
   final ui.FragmentProgram? shaderBuilder;
   final Widget child;
   final Animation<double>? animation;
-
-  /// The key of this widget's parent (an AnimatedSwitcher).
-  final Key switcherKey;
 
   final Size? childSize;
 
@@ -45,15 +43,19 @@ class ShaderTransition extends StatefulWidget {
   /// Reverses the animation direction of the incoming widget.
   final bool reverseAnimations;
 
-  const ShaderTransition({super.key, 
-    required this.switcherKey,
+  /// Mutable field so siblings can use for dual-texture shaders.
+  ui.Image? imageOfChild;
+
+
+  ShaderTransition({
+    required super.key,
     required this.child,
-    this.shaderBuilder,
-    this.animation,
-    this.childSize,
+    required this.shaderBuilder,
+    required this.animation,
     this.resolutionXIndex = 0,
     this.resolutionYIndex = 1,
     this.progressIndex = 2,
+    this.childSize,
     this.floatUniforms,
     this.texture1Index,
     this.texture0Index,
@@ -65,7 +67,7 @@ class ShaderTransition extends StatefulWidget {
     return program.fragmentShader();
   }
 
-  static Animation<double> getSequentialAnimation(Animation<double> animation){
+  static Animation<double> getSequentialAnimation(Animation<double> animation) {
     return Tween(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: animation,
@@ -79,74 +81,127 @@ class ShaderTransition extends StatefulWidget {
 }
 
 class _ShaderTransitionState extends State<ShaderTransition> {
-
-  String get switcherKey => widget.switcherKey.toString();
+  String? _switcherId;
+  late Widget _child;
   bool _isOldWidget = false;
   double _progress = 0.0;
   bool _shaderUniformsSet = false;
-  ui.Image? _imageOfChild;
   ui.FragmentShader? _shader;
   bool _layoutCapture = false;
   BoxConstraints? _constraints;
   double _pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
   bool _clear = false;
   bool _isDisposed = false;
-  Size? _childSize;
+  late Key _stateKey;
+  _ShaderTransitionState? _siblingState;
+
   ShaderMode get _shaderMode {
-    if (widget.texture1Index != null && widget.texture0Index != null){
-      return ShaderMode.DualTexture;
+    if (widget.texture1Index != null && widget.texture0Index != null) {
+      return ShaderMode.dualTexture;
+    } else if (widget.texture0Index != null) {
+      return ShaderMode.singleTexture;
     }
-    else if (widget.texture0Index != null){
-      return ShaderMode.SingleTexture;
-    }
-    return ShaderMode.Mask;
+    return ShaderMode.mask;
   }
 
   @override
   void initState() {
-    _childSize = widget.childSize;
+    _switcherId = getSwitcherName();
+    _stateKey = UniqueKey();
+    _child = NotificationListener<SizeChangedLayoutNotification>(
+        onNotification: sizeChanged,
+        child: SizeChangedLayoutNotifier(
+          child: widget.child,
+        ));
+    _initialize();
+    super.initState();
+  }
+
+  bool sizeChanged(SizeChangedLayoutNotification? notification) {
+    if (notification != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _reset();
+        }
+      });
+      return true;
+    }
+    return false;
+  }
+
+  void _initialize() {
     /// Necessary to track active instances within the same AnimatedSwitcher so that stored images are
     /// removed from memory when no longer needed.
-    if (!ShaderTransition._activeInstances.containsKey(switcherKey)) {
-      ShaderTransition._activeInstances[switcherKey] = List.empty(growable: true);
-    }
-    ShaderTransition._activeInstances[switcherKey]!.add(hashCode);
 
-    super.initState();
-    _progress = widget.animation!.value;
-    initializeShader().whenComplete(() {
+    ShaderTransition? sibling;
+    if (_switcherId != null){
+      if (!ShaderTransition._activeInstances.containsKey(_switcherId!)) {
+        ShaderTransition._activeInstances[_switcherId!] = List.empty(growable: true);
+      }
+      ShaderTransition._activeInstances[_switcherId]!.add(_stateKey);
+      _progress = widget.animation!.value;
+      if (_shaderMode == ShaderMode.dualTexture){
+         sibling = _getSibling(context);
+      }
+    }
+
+    _initializeShader(sibling).whenComplete(() {
       _shaderUniformsSet = true;
       if (widget.animation != null) {
-        setState(() {
-          _progress = widget.animation!.value;
-        });
-        widget.animation!.addListener(animateFrame);
-      } else {
+        _progress = widget.animation!.value;
+        widget.animation!.addListener(_animateFrame);
       }
     });
   }
 
-  void animateFrame() {
+  String? getSwitcherName(){
+    final parentWidget = context.findAncestorStateOfType<State<AnimatedSwitcher>>();
+    if (parentWidget != null){
+      return parentWidget.toString().split('(').first;
+    }
+    return null;
+  }
+
+  void _reset() {
+    _isOldWidget = false;
+    _progress = 0.0;
+    _shaderUniformsSet = false;
+    widget.imageOfChild = null;
+    _shader = null;
+    _layoutCapture = false;
+    _constraints = null;
+    _pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+    _clear = false;
+    if (ShaderTransition._activeInstances.containsKey(_switcherId)) {
+      ShaderTransition._activeInstances.remove(_switcherId);
+    }
+    _initialize();
+  }
+
+  void _animateFrame() {
     {
-      if (isZombie() || _isDisposed){
-        widget.animation!.removeListener(animateFrame);
-        changeToOutgoingWidget();
-        delayedClear();
+      if (_isZombie() || _isDisposed) {
+        widget.animation!.removeListener(_animateFrame);
+        _changeToOutgoingWidget();
+        _delayedClear();
         return;
       }
+
       if (_shader != null && widget.animation != null) {
         _progress = widget.animation!.value;
-        setState(() {
-          if (_isOldWidget ^ widget.reverseAnimations){
-            _shader!.setFloat(widget.progressIndex, 1 - _progress);
-          }
-          else{
-            _shader!.setFloat(widget.progressIndex, _progress);
-          }
-          if (widget.animation!.isCompleted || widget.animation!.isDismissed) {
-            changeToOutgoingWidget();
-          }
-        });
+
+        if (!_isDisposed){
+          setState(() {
+            if ((widget.animation!.status == AnimationStatus.reverse) ^ widget.reverseAnimations) {
+              _shader!.setFloat(widget.progressIndex, 1 - _progress);
+            } else {
+              _shader!.setFloat(widget.progressIndex, _progress);
+            }
+            if (widget.animation!.isCompleted || widget.animation!.isDismissed) {
+              _changeToOutgoingWidget();
+            }
+          });
+        }
       }
     }
   }
@@ -154,131 +209,190 @@ class _ShaderTransitionState extends State<ShaderTransition> {
   @override
   void dispose() {
     _isDisposed = true;
-    if (ShaderTransition._activeInstances.containsKey(switcherKey)) {
-      ShaderTransition._activeInstances[switcherKey]!.removeWhere((e) => e == hashCode);
+    if (ShaderTransition._activeInstances.containsKey(_switcherId)) {
+      ShaderTransition._activeInstances[_switcherId]!.removeWhere((e) => e == _stateKey);
+
       /// Keep 3 most recent images available for interrupted animations
-      while (ShaderTransition._savedImagesMap.containsKey(switcherKey) && ShaderTransition._savedImagesMap[switcherKey]!.length > 3){
-        ShaderTransition._savedImagesMap[switcherKey]!.removeAt(0);
+      while (ShaderTransition._savedImagesMap.containsKey(_switcherId) &&
+          ShaderTransition._savedImagesMap[_switcherId]!.length > 3) {
+        ShaderTransition._savedImagesMap[_switcherId]!.removeAt(0);
       }
-      if (ShaderTransition._activeInstances[switcherKey]!.isEmpty) {
+      if (ShaderTransition._activeInstances[_switcherId]!.isEmpty) {
         /// This indicates that this object's parent AnimatedSwitcher is no longer active. Clears any stored
         /// image captures in the static map.
-        ShaderTransition._activeInstances.remove(switcherKey);
-        ShaderTransition._savedImagesMap.remove(switcherKey);
+        ShaderTransition._activeInstances.remove(_switcherId);
+        ShaderTransition._savedImagesMap.remove(_switcherId);
       }
     }
     super.dispose();
   }
 
-  void storeImageOfChild(){
-    if (!ShaderTransition._savedImagesMap.containsKey(switcherKey)) {
-      ShaderTransition._savedImagesMap[switcherKey] = List.empty(growable: true);
+  void _storeImageOfChild() {
+    if (_switcherId != null){
+      if (!ShaderTransition._savedImagesMap.containsKey(_switcherId!)) {
+        ShaderTransition._savedImagesMap[_switcherId!] = List.empty(growable: true);
+      }
+      ShaderTransition._savedImagesMap[_switcherId]!.add(widget.imageOfChild!);
     }
-    ShaderTransition._savedImagesMap[switcherKey]!.add(_imageOfChild!);
   }
 
-  void changeToOutgoingWidget() {
+  void _changeToOutgoingWidget() {
     if (!_isOldWidget) {
       _isOldWidget = true;
-      if (_imageOfChild != null) {
-        storeImageOfChild();
+      if (widget.imageOfChild != null) {
+        _storeImageOfChild();
       }
-      if (_shaderMode == ShaderMode.DualTexture || _shaderMode == ShaderMode.SingleTexture) {
+      if (_shaderMode == ShaderMode.dualTexture || _shaderMode == ShaderMode.singleTexture) {
         _shader = null;
       }
     }
   }
 
-  Future<bool> initializeShader() async {
-    if (widget.shaderBuilder != null) {
-      _shader = widget.shaderBuilder!.fragmentShader();
+  // A semaphore lock
+  bool _shaderIsInitializing = false;
+  bool _initializeShaderRequested = false;
 
-      if (widget.floatUniforms != null) {
-        for (var entry in widget.floatUniforms!.entries) {
-          _shader!.setFloat(entry.key, entry.value);
+  Future<void> _initializeShader(ShaderTransition? sibling) async {
+    _initializeShaderRequested = true;
+    if (!_shaderIsInitializing) {
+      _shaderIsInitializing = true;
+      while (_initializeShaderRequested) {
+        _initializeShaderRequested = false;
+        if (widget.shaderBuilder != null && _shader == null) {
+          ui.FragmentShader shader = widget.shaderBuilder!.fragmentShader();
+          if (widget.floatUniforms != null) {
+            for (var entry in widget.floatUniforms!.entries) {
+              try {
+                shader.setFloat(entry.key, entry.value);
+              } catch (e) {
+                debugPrint(
+                    'Failed to set shader float uniform at index ${entry.key}: $e.  Ensure shader\'s uniform values match expected indices');
+              }
+            }
+          }
+          Size? childSize = widget.childSize;
+          RenderRepaintBoundary? boundary;
+          if (childSize == null || (_shaderMode != ShaderMode.mask)) {
+            boundary = await _getChildBoundary();
+            childSize = boundary.size;
+          }
+
+          if (_shaderMode != ShaderMode.mask) {
+            widget.imageOfChild = await boundary!.toImage(pixelRatio: _pixelRatio);
+            debugPrint(widget.key.toString() + " imageOfChild created");
+          }
+
+          try {
+            shader.setFloat(widget.resolutionXIndex, childSize.width);
+            shader.setFloat(widget.resolutionYIndex, childSize.height);
+          } catch (e) {
+            debugPrint(
+                'Failed to set resolution values for shader. Ensure shader\'s uniform values match expected indices');
+          }
+
+          await _setImageSamplers(shader, sibling);
+          _shader = shader;
         }
       }
-
-      RenderRepaintBoundary? boundary;
-      if (_childSize == null || (_shaderMode != ShaderMode.Mask && _imageOfChild == null)){
-        boundary = await getChildBoundary();
-        _childSize = boundary.size;
-      }
-
-      if  (_shaderMode != ShaderMode.Mask && _imageOfChild == null){
-        _imageOfChild = await boundary!.toImage(pixelRatio: _pixelRatio);
-      }
-      await setImageSamplers();
-
-      _shader!.setFloat(widget.resolutionXIndex, _childSize!.width);
-      _shader!.setFloat(widget.resolutionYIndex, _childSize!.height);
-
-      return true;
+      _shaderIsInitializing = false;
     }
-    return false;
   }
 
-  Future<RenderRepaintBoundary> getChildBoundary() async {
+  Future<RenderRepaintBoundary> _getChildBoundary() async {
     RenderRepaintBoundary boundary;
     final Completer<RenderRepaintBoundary> completer = Completer();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      boundary = await WidgetToImage.captureUnrenderedWidgetToBoundary(widget.child, _constraints);
+      boundary = await WidgetToImage.captureUnrenderedWidgetToBoundary(_child, _constraints);
       completer.complete(boundary);
     });
-    setState(() {
-      _layoutCapture = true;
-    });
+    if (!_isDisposed){
+      setState(() {
+        _layoutCapture = true;
+      });
+    }
     return completer.future;
   }
-  Future<void> setImageSamplers() async {
-    if (widget.texture0Index != null){
-      if (_imageOfChild != null) {
-        _shader!.setImageSampler(widget.texture0Index!, _imageOfChild!);
-      }
-      else{
-        final dummyImage = await WidgetToImage.createTransparentImage();
-        _shader!.setImageSampler(widget.texture0Index!, dummyImage);
-      }
-    }
 
-    if (widget.texture1Index != null){
-      if (ShaderTransition._savedImagesMap.containsKey(switcherKey)
-          && ShaderTransition._savedImagesMap[switcherKey]!.isNotEmpty) {
-        _shader!.setImageSampler(widget.texture1Index!, ShaderTransition._savedImagesMap[switcherKey]!.last);
+  Future<void> _setImageSamplers(ui.FragmentShader shader, ShaderTransition? sibling) async {
+    try {
+      if (widget.texture0Index != null) {
+        if (widget.imageOfChild != null) {
+          shader.setImageSampler(widget.texture0Index!, widget.imageOfChild!);
+        } else {
+          final dummyImage = await WidgetToImage.createTransparentImage();
+          shader.setImageSampler(widget.texture0Index!, dummyImage);
+        }
       }
-      else{
-        final dummyImage = await WidgetToImage.createTransparentImage();
-        _shader!.setImageSampler(widget.texture1Index!, dummyImage);
+
+      if (widget.texture1Index != null) {
+        if (sibling?.imageOfChild != null){
+          shader.setImageSampler(widget.texture1Index!, sibling!.imageOfChild!);
+        }
+        else{
+          final dummyImage = await WidgetToImage.createTransparentImage();
+          shader.setImageSampler(widget.texture1Index!, dummyImage);
+        }
+
+        // if (ShaderTransition._savedImagesMap.containsKey(_switcherId) &&
+        //     ShaderTransition._savedImagesMap[_switcherId]!.isNotEmpty) {
+        //   shader.setImageSampler(widget.texture1Index!, ShaderTransition._savedImagesMap[_switcherId]!.last);
+        // } else {
+        //   final dummyImage = await WidgetToImage.createTransparentImage();
+        //   shader.setImageSampler(widget.texture1Index!, dummyImage);
+        // }
       }
+    } catch (e) {
+      debugPrint('Failed to set shader textures. Ensure shader\'s uniform values match expected indices');
     }
   }
 
-  bool isZombie(){
-    if (_shaderMode != ShaderMode.Mask && ShaderTransition._activeInstances.containsKey(switcherKey)){
-      final ai = ShaderTransition._activeInstances[switcherKey]!;
-      if (ai.length > 2){
-        return (ai.last != hashCode);
+  bool _isZombie() {
+    if (_shaderMode != ShaderMode.mask && ShaderTransition._activeInstances.containsKey(_switcherId)) {
+      final ai = ShaderTransition._activeInstances[_switcherId]!;
+      if (ai.length > 2) {
+        return (ai.last != _stateKey);
       }
     }
     return false;
   }
 
-  Future<void> delayedClear() async{
+  Future<void> _delayedClear() async {
     /// Existing widgets must be cleared from canvas before displaying ShaderCanvas or else
     /// there will be clamping artifacts on some shader animations that have transparency.
     /// Must wait at least one frame to avoid flash of empty frame.
-    await Future.delayed(const Duration(milliseconds: 33));
+    //await Future.delayed(const Duration(milliseconds: 33));
     if (!_isDisposed){
-      setState(() {
-        _clear = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _clear = true;
+        });
       });
     }
+  }
+
+  ShaderTransition? _getSibling(BuildContext context) {
+    final parentStack = context.findAncestorWidgetOfExactType<Stack>();
+    if (parentStack != null) {
+      for(final child in parentStack.children){
+        if (child != widget && child is ShaderTransition){
+          return child;
+        }
+        else if (child is KeyedSubtree){
+          if (child.child != widget && child.child is ShaderTransition){
+            final st = child.child as ShaderTransition;
+            debugPrint(st.key.toString() + " found as sibling");
+            return child.child as ShaderTransition;
+          }
+        }
+      }
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     _pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
-    if (_clear){
+    if (_clear) {
       _clear = false;
       return const SizedBox.shrink();
     }
@@ -286,41 +400,34 @@ class _ShaderTransitionState extends State<ShaderTransition> {
       _layoutCapture = false;
       return LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
         _constraints = constraints;
-        debugPrint(widget.animation!.status.toString());
-        return _progress < 0.1 ? const SizedBox.shrink() : widget.child;
+        return _progress < 0.1 ? const SizedBox.shrink() : _child;
       });
     }
     if (_progress == 0.0) {
       return const SizedBox.shrink();
     } else if (_progress == 1.0) {
-      if (!_isOldWidget){
-        changeToOutgoingWidget();
+      if (!_isOldWidget) {
+        _changeToOutgoingWidget();
       }
-      if (_shaderMode != ShaderMode.Mask && !widget.animation!.isCompleted){
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          delayedClear();
-        });
-        return widget.child;
+      if (_shaderMode != ShaderMode.mask && !widget.animation!.isCompleted) {
+        _delayedClear();
+        return _child;
       }
-      return widget.child;
-    } else if (_shader != null &&
-        widget.animation != null &&
-        _shaderUniformsSet &&
-        !widget.animation!.isCompleted) {
-      if (_shaderMode == ShaderMode.Mask) {
+      return _child;
+    } else if (_shader != null && widget.animation != null && _shaderUniformsSet && !widget.animation!.isCompleted) {
+      if (_shaderMode == ShaderMode.mask) {
         return ShaderMask(
           shaderCallback: (bounds) {
             return _shader!;
           },
           blendMode: _isOldWidget ^ widget.reverseAnimations ? BlendMode.dstOut : BlendMode.dstIn,
-          child: widget.child,
+          child: _child,
         );
-      }
-      else {
-        if (_imageOfChild != null){
+      } else {
+        if (widget.imageOfChild != null) {
           return SizedBox(
-            width: _imageOfChild!.width.toDouble() / _pixelRatio,
-            height: _imageOfChild!.height / _pixelRatio,
+            width: widget.imageOfChild!.width.toDouble() / _pixelRatio,
+            height: widget.imageOfChild!.height / _pixelRatio,
             child: ShaderCanvas(
               shader: _shader!,
               key: ValueKey(_progress),
@@ -329,12 +436,12 @@ class _ShaderTransitionState extends State<ShaderTransition> {
         }
       }
     }
-    return widget.child;
+    return _child;
   }
 }
 
-enum ShaderMode{
-  Mask,
-  SingleTexture,
-  DualTexture,
+enum ShaderMode {
+  mask,
+  singleTexture,
+  dualTexture,
 }

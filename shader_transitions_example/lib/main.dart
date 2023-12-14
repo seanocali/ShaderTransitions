@@ -10,11 +10,18 @@ import 'package:shader_transitions/widget_to_image.dart';
 
 
 Future<void> main() async {
-  _shaderBuilder = await ui.FragmentProgram.fromAsset('shaders/radial.frag');
+  _shaderBuilderRadial = await ui.FragmentProgram.fromAsset('shaders/radial.frag');
+  _shaderBuilderGridFlip = await ui.FragmentProgram.fromAsset('shaders/grid_flip.frag');
+  _shaderBuilderPageTurn = await ui.FragmentProgram.fromAsset('shaders/page_turn.frag');
+  _shaderBuilderMorph = await ui.FragmentProgram.fromAsset('shaders/morph.frag');
   runApp(const MyApp());
 }
 
-ui.FragmentProgram? _shaderBuilder;
+ui.FragmentProgram? _shaderBuilderRadial;
+ui.FragmentProgram? _shaderBuilderGridFlip;
+ui.FragmentProgram? _shaderBuilderPageTurn;
+ui.FragmentProgram? _shaderBuilderMorph;
+
 
 
 class MyApp extends StatelessWidget {
@@ -23,123 +30,254 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Shader Switcher Demo',
+      title: 'Shader Transition Demo',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
       ),
       home: //MainPage(),
-      ShaderTransitionDemo(),
+      Scaffold(body: buildViewportConstrainedGrid()),
     );
   }
 }
 
-class ShaderTransitionDemo extends StatefulWidget {
-  const ShaderTransitionDemo({super.key});
 
+Widget buildViewportConstrainedGrid() {
+  // List of distinct widgets
+  final List<Widget> distinctWidgets = [
+    const ShaderTransitionDemo(name: "Radial\r\n(Alpha Mask)", shaderTransition: getRadialTransition,),
+    const ShaderTransitionDemo(name: "Grid Flip\r\n(Dual Texture)", shaderTransition: getGridFlipTransition,),
+    const ShaderTransitionDemo(name: "Page Turn\r\n(Dual Texture)", shaderTransition: getPageTurnTransition,),
+    const ShaderTransitionDemo(name: "Morph\r\n(Dual Texture)", shaderTransition: getMorphTransition,),
+
+    Container(
+      color: Colors.red,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: Text('Your Text Here'),
+      ),
+    ),
+    Container(color: Colors.purple), // Fifth distinct widget
+    Container(color: Colors.yellow), // Sixth distinct widget
+    // Add more widgets as needed
+  ];
+
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      double itemWidth = constraints.maxWidth / 2; // For two columns
+      double itemHeight = constraints.maxHeight / 3; // For three rows
+
+      return GridView.builder(
+        physics: NeverScrollableScrollPhysics(), // Disable scrolling
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: itemWidth,
+          childAspectRatio: itemWidth / itemHeight,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+        ),
+        itemCount: distinctWidgets.length,
+        itemBuilder: (context, index) {
+          // Use the widget from the list based on the index
+          return distinctWidgets[index];
+        },
+      );
+    },
+  );
+}
+
+ShaderTransition getRadialTransition(Animation<double> animation, Widget child){
+  return ShaderTransition(
+    key: UniqueKey(),
+    shaderBuilder: _shaderBuilderRadial,
+    animation: animation,
+    reverseAnimations: false,
+    resolutionXIndex: 0,
+    resolutionYIndex: 1,
+    progressIndex: 2,
+    floatUniforms: const {
+      3: 1,
+    },
+    child: child,
+  );
+}
+
+ShaderTransition getGridFlipTransition(Animation<double> animation, Widget child){
+  return ShaderTransition(
+    key: UniqueKey(),
+    shaderBuilder: _shaderBuilderGridFlip,
+    animation: animation,
+    reverseAnimations: false,
+    resolutionXIndex: 0,
+    resolutionYIndex: 1,
+    texture0Index: 0,
+    texture1Index: 1,
+    progressIndex: 2,
+    floatUniforms: const {
+      3: .1,
+      4: .05,
+      5: 0,
+      6: 0,
+      7: 0,
+      8: 0,
+      9: 0.1,
+    },
+    child: child,
+  );
+}
+
+ShaderTransition getPageTurnTransition(Animation<double> animation, Widget child){
+  return ShaderTransition(
+    key: UniqueKey(),
+    shaderBuilder: _shaderBuilderPageTurn,
+    animation: animation,
+    reverseAnimations: false,
+    resolutionXIndex: 0,
+    resolutionYIndex: 1,
+    texture0Index: 0,
+    texture1Index: 1,
+    progressIndex: 2,
+    floatUniforms: const {
+      3: 512,
+      4: 3,
+    },
+    child: child,
+  );
+}
+
+ShaderTransition getMorphTransition(Animation<double> animation, Widget child){
+  return ShaderTransition(
+    key: UniqueKey(),
+    shaderBuilder: _shaderBuilderMorph,
+    animation: animation,
+    reverseAnimations: false,
+    resolutionXIndex: 0,
+    resolutionYIndex: 1,
+    texture0Index: 0,
+    texture1Index: 1,
+    progressIndex: 2,
+    floatUniforms: const {
+      3: 0.1,
+    },
+    child: child,
+  );
+}
+
+class ShaderTransitionDemo extends StatefulWidget {
+  const ShaderTransitionDemo( {super.key, required this.name, required this.shaderTransition});
+  final String name;
+  final ShaderTransition Function(Animation<double> animation, Widget child) shaderTransition;
   @override
   State<ShaderTransitionDemo> createState() => _ShaderTransitionDemoState();
 }
 
 class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
-  bool _showGreen = true;
-  String animationValue = "";
-
-  Future<Uint8List> convertImageToPNG(ui.Image image) async {
-    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List();
-  }
-
-  final switcherKey = UniqueKey();
+  bool _showWidgetA = true;
+  var rebuildKey = UniqueKey();
 
   @override
   Widget build(BuildContext context) {
-    final widget = _showGreen ? GreenWidget() : PurpleWidget();
-    return Scaffold(
-      body: Center(
-        child: Container(
-          child: AnimatedSwitcher(
-              key: switcherKey,
-              duration: Duration(milliseconds: 3000),
-              child: widget,
-              transitionBuilder: (Widget child, Animation<double> animation) {
-                bool _isIncoming = animation.status == AnimationStatus.dismissed;
-                debugPrint ("+++++++++++++++++");
-                String dir = _isIncoming ? "incoming" : "outgoing";
-                debugPrint (child.toString() + " is " + dir + " status is " + animation.status.toString() );
-                debugPrint ("+++++++++++++++++");
-
-
-                // Apply the tween to the curved animation
-                final shaderTransition = ShaderTransition(
-                  switcherKey: switcherKey,
-                  shaderBuilder: _shaderBuilder!,
-                  animation: animation,
-                  reverseAnimations: false,
-                  resolutionXIndex: 0,
-                  resolutionYIndex: 1,
-                  //texture0Index: 0,
-                  //texture1Index: 1,
-                  child: child,
-                  progressIndex: 2,
-                  floatUniforms: {
-                    3: 1,
-                  },
-                );
-                return shaderTransition;
-              }),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-//Navigator.of(context).push(ShaderPageRoute(page: NewPage()));
+    final child = _showWidgetA ? const ExampleWidgetA() : const ExampleWidgetB();
+    return Center(
+      child: GestureDetector(
+        onTap: () {
           setState(() {
-            _showGreen = !_showGreen;
+            rebuildKey = UniqueKey();
+          });
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            setState(() {
+              _showWidgetA = !_showWidgetA;
+            });
           });
         },
-        child: const Icon(Icons.add),
+
+        child: Stack(
+          key: rebuildKey,
+          children: [
+            AnimatedSwitcher(
+                duration: const Duration(milliseconds: 3000),
+                child: child,
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return widget.shaderTransition(animation, child);
+                }
+                ),
+            Container(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: FractionallySizedBox(
+                  widthFactor: 0.3,
+                  heightFactor: 0.3,
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(widget.name,
+                          style: TextStyle(color: Colors.grey.shade800, fontSize: 40, fontStyle: FontStyle.italic)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+        ),
       ),
     );
   }
 }
 
-class GreenWidget extends StatelessWidget {
+class ExampleWidgetA extends StatelessWidget {
+  const ExampleWidgetA({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(28.0),
       child: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment(-0.4, -0.8),
             stops: [0.0, 0.5, 0.5, 1],
             colors: [
+              Colors.grey,
               Colors.green,
-              Colors.green,
-              Colors.limeAccent,
-              Colors.limeAccent,
+              Colors.teal,
+              Colors.lightGreen,
             ],
             tileMode: TileMode.repeated,
           ),
         ),
-        width: 800,
-        height: 1000,
-        child: const Center(child: Text('Green', style: TextStyle(color: Colors.white, fontSize: 24))),
+        child:
+        const Center(child: Opacity(opacity: 0.5, child: FittedBox(fit: BoxFit.contain, child: Text('A', style: TextStyle(color: Colors.grey, fontSize: 140))))),
       ),
     );
   }
 }
 
-class PurpleWidget extends StatelessWidget {
+class ExampleWidgetB extends StatelessWidget {
+  const ExampleWidgetB({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(58.0),
+      borderRadius: BorderRadius.circular(56.0),
       child: Container(
-        width: 800,
-        height: 1000,
-        color: Colors.purple,
-        child: const Center(child: Text('Purple', style: TextStyle(color: Colors.white, fontSize: 24))),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomLeft,
+            end: Alignment(-0.4, -0.8),
+            stops: [0.0, 0.5, 0.5, 1],
+            colors: [
+              Colors.red,
+              Colors.redAccent,
+              Colors.purpleAccent,
+              Colors.purple,
+            ],
+            tileMode: TileMode.repeated,
+          ),
+        ),
+        child:
+        const Center(child: Opacity(opacity: 0.5, child: FittedBox(fit: BoxFit.contain, child: Text('B', style: TextStyle(color: Colors.grey, fontSize: 140))))),
       ),
     );
   }
@@ -196,7 +334,7 @@ class StaticTextureShaderTest extends StatefulWidget {
 }
 
 class _StaticTextureShaderTestState extends State<StaticTextureShaderTest> {
-  final _shader = _shaderBuilder!.fragmentShader();
+  final _shader = _shaderBuilderRadial!.fragmentShader();
   bool _shaderReady = false;
   double _progress = 0.0; // Initializing the progress value
 
