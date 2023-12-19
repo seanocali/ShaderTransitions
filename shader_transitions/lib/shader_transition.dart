@@ -11,7 +11,7 @@ class ShaderTransition extends StatefulWidget {
   /// Only used when in an AnimatedSwitcher and when the shader animates image captures of widgets (textures).
   /// Store the captured image of this ShaderTransition's child so that the next incoming ShaderTransition can use it.
   /// Map key is the hashCode of the parent AnimatedSwitcher.
-  static final _savedImagesMap = HashMap<String, List<ui.Image>>();
+  static final _savedImagesMap = HashMap<String, ui.Image>();
   static final _activeInstances = HashMap<String, List<int>>();
 
   final ui.FragmentProgram? shaderBuilder;
@@ -87,6 +87,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
   bool _isOldWidget = false;
   double _progress = 0.0;
   bool _shaderUniformsSet = false;
+  ui.Image? _imageOfPreviousChild;
   ui.Image? _imageOfChild;
   ui.FragmentShader? _shader;
   bool _layoutCapture = false;
@@ -204,9 +205,6 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     if (ShaderTransition._activeInstances.containsKey(switcherKey)) {
       ShaderTransition._activeInstances[switcherKey]!.removeWhere((e) => e == this.hashCode);
       /// Keep 3 most recent images available for interrupted animations
-      while (ShaderTransition._savedImagesMap.containsKey(switcherKey) && ShaderTransition._savedImagesMap[switcherKey]!.length > 3){
-        ShaderTransition._savedImagesMap[switcherKey]!.removeAt(0);
-      }
       if (ShaderTransition._activeInstances[switcherKey]!.isEmpty) {
         /// This indicates that this object's parent AnimatedSwitcher is no longer active. Clears any stored
         /// image captures in the static map.
@@ -218,17 +216,17 @@ class _ShaderTransitionState extends State<ShaderTransition> {
   }
 
   void storeImageOfChild(){
-    if (!ShaderTransition._savedImagesMap.containsKey(switcherKey)) {
-      ShaderTransition._savedImagesMap[switcherKey] = List.empty(growable: true);
+    if (ShaderTransition._savedImagesMap.containsKey(switcherKey)){
+      _imageOfPreviousChild = ShaderTransition._savedImagesMap[switcherKey]!;
     }
-    ShaderTransition._savedImagesMap[switcherKey]!.add(_imageOfChild!);
+    ShaderTransition._savedImagesMap[switcherKey] = _imageOfChild!;
   }
 
   void changeToOutgoingWidget() {
     if (!_isOldWidget) {
       _isOldWidget = true;
       if (_imageOfChild != null) {
-        storeImageOfChild();
+       // storeImageOfChild();
       }
       if (_shaderMode == ShaderMode.dualTexture || _shaderMode == ShaderMode.singleTexture) {
         _shader = null;
@@ -254,6 +252,9 @@ class _ShaderTransitionState extends State<ShaderTransition> {
 
       if  (_shaderMode != ShaderMode.mask && _imageOfChild == null){
         _imageOfChild = await boundary!.toImage(pixelRatio: _pixelRatio);
+        if (_imageOfChild != null){
+          storeImageOfChild();
+        }
       }
       await setImageSamplers(shader);
 
@@ -311,9 +312,8 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     }
 
     if (widget.texture1Index != null){
-      if (ShaderTransition._savedImagesMap.containsKey(switcherKey)
-          && ShaderTransition._savedImagesMap[switcherKey]!.isNotEmpty) {
-        shader.setImageSampler(widget.texture1Index!, ShaderTransition._savedImagesMap[switcherKey]!.last);
+      if (_imageOfPreviousChild != null) {
+        shader.setImageSampler(widget.texture1Index!, _imageOfPreviousChild!);
       }
       else{
         final dummyImage = await WidgetToImage.createTransparentImage();
