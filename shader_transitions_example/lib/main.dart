@@ -41,83 +41,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// class ShaderTransitionDemo2 extends StatefulWidget {
-//   const ShaderTransitionDemo2({super.key});
-//
-//   @override
-//   State<ShaderTransitionDemo2> createState() => _ShaderTransitionDemo2State();
-// }
-//
-// class _ShaderTransitionDemo2State extends State<ShaderTransitionDemo2> {
-//   bool _showGreen = true;
-//   String animationValue = "";
-//
-//   Future<Uint8List> convertImageToPNG(ui.Image image) async {
-//     final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-//     return byteData!.buffer.asUint8List();
-//   }
-//
-//   final switcherKey = UniqueKey();
-//   var rebuildKey = UniqueKey();
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final widget = _showGreen ? ExampleWidgetA() : ExampleWidgetB();
-//     return Scaffold(
-//       body: Center(
-//         child: Container(
-//           key: rebuildKey,
-//           child: AnimatedSwitcher(
-//               key: switcherKey,
-//               duration: Duration(milliseconds: 3000),
-//               child: widget,
-//               transitionBuilder: (Widget child, Animation<double> animation) {
-//                 bool _isIncoming = animation.status == AnimationStatus.dismissed;
-//                 debugPrint ("+++++++++++++++++");
-//                 String dir = _isIncoming ? "incoming" : "outgoing";
-//                 debugPrint (child.toString() + " is " + dir + " status is " + animation.status.toString() );
-//                 debugPrint ("+++++++++++++++++");
-//
-//
-//                 // Apply the tween to the curved animation
-//                 final shaderTransition = ShaderTransitionOld(
-//                   switcherKey: switcherKey,
-//                   shaderBuilder: _shaderBuilderPageTurn!,
-//                   animation: animation,
-//                   reverseAnimations: false,
-//                   resolutionXIndex: 0,
-//                   resolutionYIndex: 1,
-//                   texture0Index: 0,
-//                   texture1Index: 1,
-//                   child: child,
-//                   progressIndex: 2,
-//                   floatUniforms: {
-//                     3: 512,
-//                     4: 3,
-//                   },
-//                 );
-//                 return shaderTransition;
-//               }),
-//         ),
-//       ),
-//       floatingActionButton: FloatingActionButton(
-//         onPressed: () async {
-// //Navigator.of(context).push(ShaderPageRoute(page: NewPage()));
-//           setState(() {
-//             _showGreen = !_showGreen;
-//           });
-//         },
-//         child: const Icon(Icons.add),
-//       ),
-//     );
-//   }
-// }
-
-
-
-
-
-
 Widget buildViewportConstrainedGrid() {
   // List of distinct widgets
   final List<Widget> distinctWidgets = [
@@ -161,8 +84,8 @@ Widget buildViewportConstrainedGrid() {
   );
 }
 
-ShaderTransitionOld getRadialTransition(Key key, Animation<double> animation, Widget child){
-  return ShaderTransitionOld(
+ShaderTransition getRadialTransition(Key key, Animation<double> animation, Widget child){
+  return ShaderTransition(
     switcherKey: key,
     shaderBuilder: _shaderBuilderRadial,
     animation: animation,
@@ -177,8 +100,8 @@ ShaderTransitionOld getRadialTransition(Key key, Animation<double> animation, Wi
   );
 }
 
-ShaderTransitionOld getGridFlipTransition(Key key, Animation<double> animation, Widget child){
-  return ShaderTransitionOld(
+ShaderTransition getGridFlipTransition(Key key, Animation<double> animation, Widget child){
+  return ShaderTransition(
     switcherKey: key,
     shaderBuilder: _shaderBuilderGridFlip,
     animation: animation,
@@ -201,8 +124,8 @@ ShaderTransitionOld getGridFlipTransition(Key key, Animation<double> animation, 
   );
 }
 
-ShaderTransitionOld getPageTurnTransition(Key key, Animation<double> animation, Widget child){
-  return ShaderTransitionOld(
+ShaderTransition getPageTurnTransition(Key key, Animation<double> animation, Widget child){
+  return ShaderTransition(
     switcherKey: key,
     shaderBuilder: _shaderBuilderPageTurn,
     animation: animation,
@@ -220,8 +143,8 @@ ShaderTransitionOld getPageTurnTransition(Key key, Animation<double> animation, 
   );
 }
 
-ShaderTransitionOld getMorphTransition(Key key, Animation<double> animation, Widget child){
-  return ShaderTransitionOld(
+ShaderTransition getMorphTransition(Key key, Animation<double> animation, Widget child){
+  return ShaderTransition(
     switcherKey: key,
     shaderBuilder: _shaderBuilderMorph,
     animation: animation,
@@ -241,7 +164,7 @@ ShaderTransitionOld getMorphTransition(Key key, Animation<double> animation, Wid
 class ShaderTransitionDemo extends StatefulWidget {
   const ShaderTransitionDemo( {super.key, required this.name, required this.shaderTransition});
   final String name;
-  final ShaderTransitionOld Function(Key key, Animation<double> animation, Widget child) shaderTransition;
+  final ShaderTransition Function(Key key, Animation<double> animation, Widget child) shaderTransition;
   @override
   State<ShaderTransitionDemo> createState() => _ShaderTransitionDemoState();
 }
@@ -370,49 +293,6 @@ class ExampleWidgetB extends StatelessWidget {
     );
   }
 }
-
-// class ShaderSwitcherDemo extends StatefulWidget {
-//   const ShaderSwitcherDemo({Key? key}) : super(key: key);
-//
-//   @override
-//   _ShaderSwitcherDemoState createState() => _ShaderSwitcherDemoState();
-// }
-//
-// class _ShaderSwitcherDemoState extends State<ShaderSwitcherDemo> {
-//   bool _showGreen = true;
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('Shader Switcher Demo'),
-//       ),
-//       body: ShaderSwitcher(
-//         assetKey: 'shaders/push.frag',
-//         duration: const Duration(seconds: 2),
-//         progressIndex: 0,
-//         floatUniforms: {
-//           1: MediaQuery.of(context).size.width.toDouble(),
-//           2: MediaQuery.of(context).size.height.toDouble(),
-//           3: 0.0,
-//           4: 1.0,
-//         },
-//         outgoingTextureIndex: 0,
-//         incomingTextureIndex: 1,
-//         sampler2DUniforms: {},
-//         child: _showGreen ? GreenWidget() : PurpleWidget(),
-//       ),
-//       floatingActionButton: FloatingActionButton(
-//         onPressed: () {
-//           setState(() {
-//             _showGreen = !_showGreen;
-//           });
-//         },
-//         child: const Icon(Icons.switch_left),
-//       ),
-//     );
-//   }
-// }
 
 class StaticTextureShaderTest extends StatefulWidget {
   const StaticTextureShaderTest({super.key});
