@@ -41,6 +41,82 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// class ShaderTransitionDemo2 extends StatefulWidget {
+//   const ShaderTransitionDemo2({super.key});
+//
+//   @override
+//   State<ShaderTransitionDemo2> createState() => _ShaderTransitionDemo2State();
+// }
+//
+// class _ShaderTransitionDemo2State extends State<ShaderTransitionDemo2> {
+//   bool _showGreen = true;
+//   String animationValue = "";
+//
+//   Future<Uint8List> convertImageToPNG(ui.Image image) async {
+//     final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+//     return byteData!.buffer.asUint8List();
+//   }
+//
+//   final switcherKey = UniqueKey();
+//   var rebuildKey = UniqueKey();
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     final widget = _showGreen ? ExampleWidgetA() : ExampleWidgetB();
+//     return Scaffold(
+//       body: Center(
+//         child: Container(
+//           key: rebuildKey,
+//           child: AnimatedSwitcher(
+//               key: switcherKey,
+//               duration: Duration(milliseconds: 3000),
+//               child: widget,
+//               transitionBuilder: (Widget child, Animation<double> animation) {
+//                 bool _isIncoming = animation.status == AnimationStatus.dismissed;
+//                 debugPrint ("+++++++++++++++++");
+//                 String dir = _isIncoming ? "incoming" : "outgoing";
+//                 debugPrint (child.toString() + " is " + dir + " status is " + animation.status.toString() );
+//                 debugPrint ("+++++++++++++++++");
+//
+//
+//                 // Apply the tween to the curved animation
+//                 final shaderTransition = ShaderTransitionOld(
+//                   switcherKey: switcherKey,
+//                   shaderBuilder: _shaderBuilderPageTurn!,
+//                   animation: animation,
+//                   reverseAnimations: false,
+//                   resolutionXIndex: 0,
+//                   resolutionYIndex: 1,
+//                   texture0Index: 0,
+//                   texture1Index: 1,
+//                   child: child,
+//                   progressIndex: 2,
+//                   floatUniforms: {
+//                     3: 512,
+//                     4: 3,
+//                   },
+//                 );
+//                 return shaderTransition;
+//               }),
+//         ),
+//       ),
+//       floatingActionButton: FloatingActionButton(
+//         onPressed: () async {
+// //Navigator.of(context).push(ShaderPageRoute(page: NewPage()));
+//           setState(() {
+//             _showGreen = !_showGreen;
+//           });
+//         },
+//         child: const Icon(Icons.add),
+//       ),
+//     );
+//   }
+// }
+
+
+
+
+
 
 Widget buildViewportConstrainedGrid() {
   // List of distinct widgets
@@ -68,7 +144,7 @@ Widget buildViewportConstrainedGrid() {
       double itemHeight = constraints.maxHeight / 3; // For three rows
 
       return GridView.builder(
-        physics: NeverScrollableScrollPhysics(), // Disable scrolling
+        physics: const NeverScrollableScrollPhysics(), // Disable scrolling
         gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: itemWidth,
           childAspectRatio: itemWidth / itemHeight,
@@ -85,9 +161,9 @@ Widget buildViewportConstrainedGrid() {
   );
 }
 
-ShaderTransition getRadialTransition(Animation<double> animation, Widget child){
-  return ShaderTransition(
-    key: UniqueKey(),
+ShaderTransitionOld getRadialTransition(Key key, Animation<double> animation, Widget child){
+  return ShaderTransitionOld(
+    switcherKey: key,
     shaderBuilder: _shaderBuilderRadial,
     animation: animation,
     reverseAnimations: false,
@@ -101,9 +177,9 @@ ShaderTransition getRadialTransition(Animation<double> animation, Widget child){
   );
 }
 
-ShaderTransition getGridFlipTransition(Animation<double> animation, Widget child){
-  return ShaderTransition(
-    key: UniqueKey(),
+ShaderTransitionOld getGridFlipTransition(Key key, Animation<double> animation, Widget child){
+  return ShaderTransitionOld(
+    switcherKey: key,
     shaderBuilder: _shaderBuilderGridFlip,
     animation: animation,
     reverseAnimations: false,
@@ -125,9 +201,9 @@ ShaderTransition getGridFlipTransition(Animation<double> animation, Widget child
   );
 }
 
-ShaderTransition getPageTurnTransition(Animation<double> animation, Widget child){
-  return ShaderTransition(
-    key: UniqueKey(),
+ShaderTransitionOld getPageTurnTransition(Key key, Animation<double> animation, Widget child){
+  return ShaderTransitionOld(
+    switcherKey: key,
     shaderBuilder: _shaderBuilderPageTurn,
     animation: animation,
     reverseAnimations: false,
@@ -144,9 +220,9 @@ ShaderTransition getPageTurnTransition(Animation<double> animation, Widget child
   );
 }
 
-ShaderTransition getMorphTransition(Animation<double> animation, Widget child){
-  return ShaderTransition(
-    key: UniqueKey(),
+ShaderTransitionOld getMorphTransition(Key key, Animation<double> animation, Widget child){
+  return ShaderTransitionOld(
+    switcherKey: key,
     shaderBuilder: _shaderBuilderMorph,
     animation: animation,
     reverseAnimations: false,
@@ -165,23 +241,24 @@ ShaderTransition getMorphTransition(Animation<double> animation, Widget child){
 class ShaderTransitionDemo extends StatefulWidget {
   const ShaderTransitionDemo( {super.key, required this.name, required this.shaderTransition});
   final String name;
-  final ShaderTransition Function(Animation<double> animation, Widget child) shaderTransition;
+  final ShaderTransitionOld Function(Key key, Animation<double> animation, Widget child) shaderTransition;
   @override
   State<ShaderTransitionDemo> createState() => _ShaderTransitionDemoState();
 }
 
 class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
   bool _showWidgetA = true;
-  var rebuildKey = UniqueKey();
+  final _switcherKey = UniqueKey();
+  var _rebuildKey = UniqueKey();
 
   @override
   Widget build(BuildContext context) {
     final child = _showWidgetA ? const ExampleWidgetA() : const ExampleWidgetB();
     return Center(
       child: GestureDetector(
-        onTap: () {
+        onTap: (){
           setState(() {
-            rebuildKey = UniqueKey();
+            _rebuildKey = UniqueKey();
           });
           WidgetsBinding.instance.addPostFrameCallback((_) {
             setState(() {
@@ -189,15 +266,26 @@ class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
             });
           });
         },
+        // onTap: (){
+        //   setState(() {
+        //     _showWidgetA = !_showWidgetA;
+        //   });
+        // },
+        onDoubleTap: () {
+          setState(() {
+            _showWidgetA = !_showWidgetA;
+          });
+        },
 
         child: Stack(
-          key: rebuildKey,
+          key: _rebuildKey,
           children: [
             AnimatedSwitcher(
+              key: _switcherKey,
                 duration: const Duration(milliseconds: 3000),
                 child: child,
                 transitionBuilder: (Widget child, Animation<double> animation) {
-                  return widget.shaderTransition(animation, child);
+                  return widget.shaderTransition(_switcherKey, animation, child);
                 }
                 ),
             Container(
