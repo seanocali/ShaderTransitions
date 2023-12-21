@@ -84,9 +84,8 @@ Widget buildViewportConstrainedGrid() {
   );
 }
 
-ShaderTransition getRadialTransition(Key key, Animation<double> animation, Widget child){
+ShaderTransition getRadialTransition(Animation<double> animation, Widget child){
   return ShaderTransition(
-    switcherKey: key,
     shaderBuilder: _shaderBuilderRadial,
     animation: animation,
     reverseAnimations: false,
@@ -100,9 +99,8 @@ ShaderTransition getRadialTransition(Key key, Animation<double> animation, Widge
   );
 }
 
-ShaderTransition getGridFlipTransition(Key key, Animation<double> animation, Widget child){
+ShaderTransition getGridFlipTransition(Animation<double> animation, Widget child){
   return ShaderTransition(
-    switcherKey: key,
     shaderBuilder: _shaderBuilderGridFlip,
     animation: animation,
     reverseAnimations: false,
@@ -124,9 +122,8 @@ ShaderTransition getGridFlipTransition(Key key, Animation<double> animation, Wid
   );
 }
 
-ShaderTransition getPageTurnTransition(Key key, Animation<double> animation, Widget child){
+ShaderTransition getPageTurnTransition(Animation<double> animation, Widget child){
   return ShaderTransition(
-    switcherKey: key,
     shaderBuilder: _shaderBuilderPageTurn,
     animation: animation,
     reverseAnimations: false,
@@ -143,9 +140,8 @@ ShaderTransition getPageTurnTransition(Key key, Animation<double> animation, Wid
   );
 }
 
-ShaderTransition getMorphTransition(Key key, Animation<double> animation, Widget child){
+ShaderTransition getMorphTransition(Animation<double> animation, Widget child){
   return ShaderTransition(
-    switcherKey: key,
     shaderBuilder: _shaderBuilderMorph,
     animation: animation,
     reverseAnimations: false,
@@ -164,15 +160,14 @@ ShaderTransition getMorphTransition(Key key, Animation<double> animation, Widget
 class ShaderTransitionDemo extends StatefulWidget {
   const ShaderTransitionDemo( {super.key, required this.name, required this.shaderTransition});
   final String name;
-  final ShaderTransition Function(Key key, Animation<double> animation, Widget child) shaderTransition;
+  final ShaderTransition Function(Animation<double> animation, Widget child) shaderTransition;
   @override
   State<ShaderTransitionDemo> createState() => _ShaderTransitionDemoState();
 }
 
 class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
   bool _showWidgetA = true;
-  final _switcherKey = UniqueKey();
-  var _rebuildKey = UniqueKey();
+  var _forceRebuildKey = UniqueKey();
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +176,7 @@ class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
       child: GestureDetector(
         onTap: (){
           setState(() {
-            _rebuildKey = UniqueKey();
+            _forceRebuildKey = UniqueKey();
           });
           WidgetsBinding.instance.addPostFrameCallback((_) {
             setState(() {
@@ -201,14 +196,13 @@ class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
         },
 
         child: Stack(
-          key: _rebuildKey,
           children: [
             AnimatedSwitcher(
-              key: _switcherKey,
+              key: _forceRebuildKey,
                 duration: const Duration(milliseconds: 3000),
                 child: child,
                 transitionBuilder: (Widget child, Animation<double> animation) {
-                  return widget.shaderTransition(_switcherKey, animation, child);
+                  return widget.shaderTransition(animation, child);
                 }
                 ),
             Container(
