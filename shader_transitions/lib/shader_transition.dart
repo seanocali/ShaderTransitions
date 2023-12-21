@@ -66,7 +66,7 @@ class ShaderTransition extends StatefulWidget {
     return Tween(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: animation,
-        curve: Interval(0.5, 1.0, curve: Curves.linear), // Starts halfway through
+        curve: const Interval(0.5, 1.0, curve: Curves.linear), // Starts halfway through
       ),
     );
   }
@@ -81,6 +81,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
   late String _switcherId;
 
   bool _isOldWidget = false;
+  bool _wasInterrupted = false;
   double _progress = 0.0;
   bool _shaderUniformsSet = false;
   ui.Image? _imageOfPreviousChild;
@@ -145,6 +146,11 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     if (status == AnimationStatus.reverse){
       _isIncomingLayer = false;
       _isOldWidget = true;
+      debugPrint(toString() + " animation status changed to " + status.toString() + " progress: " + _progress.toString());
+      if (_progress < 1.0){
+        _wasInterrupted = true;
+        debugPrint("INTERRUPTED");
+      }
       if (_shaderMode == ShaderMode.dualTexture || _shaderMode == ShaderMode.singleTexture) {
         _shader = null;
         _forceShowChild = true;
@@ -170,14 +176,13 @@ class _ShaderTransitionState extends State<ShaderTransition> {
         debugPrint("Timeout is " + timeout.toString());
         setState(() {
           _forceShowChild = false;
-          debugPrint(toString() + " which is " + _isIncomingLayer.toString() + " in being incoming," + " is triggering delayed clear");
-          delayedClear();
+         _clear = true;
         });
       }
   }
 
   Future<void> _initializePreAnimatedLayer() async{
-    await initializeShader();
+    await _initializeShader();
     _shaderUniformsSet = true;
     if (!_isDisposed && widget.animation != null) {
       widget.animation!.addListener(animateFrame);
@@ -218,9 +223,6 @@ class _ShaderTransitionState extends State<ShaderTransition> {
           else {
             _shader!.setFloat(widget.progressIndex, _progress);
           }
-          if (widget.animation!.isCompleted || widget.animation!.isDismissed) {
-            changeToOutgoingWidget();
-          }
         });
       }
     }
@@ -250,17 +252,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     super.dispose();
   }
 
-  void changeToOutgoingWidget() {
-    _isIncomingLayer = false;
-    if (!_isOldWidget) {
-      _isOldWidget = true;
-      if (_shaderMode == ShaderMode.dualTexture || _shaderMode == ShaderMode.singleTexture) {
-        _shader = null;
-      }
-    }
-  }
-
-  Future<bool> initializeShader() async {
+  Future<bool> _initializeShader() async {
     if (widget.shaderBuilder != null) {
       final shader = widget.shaderBuilder!.fragmentShader();
 
@@ -314,7 +306,6 @@ class _ShaderTransitionState extends State<ShaderTransition> {
         _layoutCapture = true;
       });
     }
-
     return completer.future;
   }
 
@@ -340,21 +331,6 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     }
   }
 
-
-  Future<void> delayedClear() async {
-    /// Existing widgets must be cleared from canvas before displaying ShaderCanvas or else
-    /// there will be clamping artifacts on some shader animations that have transparency.
-    /// Must wait at least one frame to avoid flash of empty frame.
-    await Future.delayed(Duration(milliseconds: 33));
-    if (!_isDisposed) {
-      setState(() {
-        _clear = true;
-      });
-    }
-  }
-
-  String lastOutputName = "";
-
   @override
   Widget build(BuildContext context) {
     Widget output = _child;
@@ -378,25 +354,12 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     else if (_forceShowChild){
       output = _child;
     }
-    // else if (_progress == 0.0) {
-    //   output = SizedBox.shrink();
-    // } else if (_progress == 1.0) {
-    //   if (!_isOldWidget) {
-    //     changeToOutgoingWidget();
-    //   }
-    //   if (_shaderMode != ShaderMode.mask && !widget.animation!.isCompleted) {
-    //     WidgetsBinding.instance.addPostFrameCallback((_) async {
-    //       delayedClear();
-    //     });
-    //   }
-    //   return _child;
-    //}
     else if (_shader != null &&
         widget.animation != null &&
         _shaderUniformsSet &&
         !widget.animation!.isCompleted) {
       if (_shaderMode == ShaderMode.mask) {
-        output = ShaderMask(
+        output = _wasInterrupted ? SizedBox.shrink() : ShaderMask(
           shaderCallback: (bounds) {
             return _shader!;
           },
@@ -416,11 +379,6 @@ class _ShaderTransitionState extends State<ShaderTransition> {
           );
         }
       }
-    }
-    if (lastOutputName != output.toString()){
-      lastOutputName = output.toString();
-      String m = _isIncomingLayer ? " Is Incoming " : " Is Outgoing ";
-      debugPrint(toString() + m + " output frame changed to " + lastOutputName);
     }
     return output;
   }
