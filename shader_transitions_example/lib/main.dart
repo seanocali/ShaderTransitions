@@ -176,7 +176,7 @@ class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
 
   @override
   Widget build(BuildContext context) {
-    final child = _showWidgetA ? const ExampleWidgetA() : const ExampleWidgetB();
+    final child = _showWidgetA ? ExampleWidgetA() : ExampleWidgetB();
     return Center(
       child: GestureDetector(
         onTap: (){
@@ -237,7 +237,7 @@ class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
 }
 
 class ExampleWidgetA extends StatelessWidget {
-  const ExampleWidgetA({super.key});
+  ExampleWidgetA({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -266,7 +266,9 @@ class ExampleWidgetA extends StatelessWidget {
 }
 
 class ExampleWidgetB extends StatelessWidget {
-  const ExampleWidgetB({super.key});
+  ExampleWidgetB({super.key}){
+
+  }
 
   @override
   Widget build(BuildContext context) {
