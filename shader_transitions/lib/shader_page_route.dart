@@ -1,48 +1,52 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
-class ShaderPageRoute extends PageRouteBuilder {
-  final Widget page;
-  @override
-  final Duration transitionDuration;
-  @override
-  final Duration reverseTransitionDuration;
+class ShaderPageRoute<T> extends PageRouteBuilder<T> {
+  final Widget child;
+  final int id;
 
-  ShaderPageRoute({required this.page,
-    this.transitionDuration = const Duration(milliseconds: 500),
-    this.reverseTransitionDuration = const Duration(milliseconds: 500)
-  })
+  ShaderPageRoute({required this.child, required this.id})
       : super(
-    pageBuilder: (
-        BuildContext context,
-        Animation<double> animation,
-        Animation<double> secondaryAnimation,
-        ) => page,
-    transitionDuration: transitionDuration,
-    reverseTransitionDuration: reverseTransitionDuration,
-    transitionsBuilder: (
-        BuildContext context,
-        Animation<double> animation,
-        Animation<double> secondaryAnimation,
-        Widget? child,
-        ) {
-      return DualTransitionBuilder(
-        animation: animation,
-        forwardBuilder: (BuildContext context, Animation<double> animation, Widget? child) {
-          // Incoming transition uses primary animation
-          return ScaleTransition(
-            scale: animation,
-            child: child,
-          );
-        },
-        reverseBuilder: (BuildContext context, Animation<double> secondaryAnimation, Widget? child) {
-          // Outgoing transition uses secondary animation
-          return FadeTransition(
-            opacity: secondaryAnimation,
-            child: child,
-          );
-        },
-        child: child,
-      );
-    },
-  );
+          pageBuilder: (context, animation, secondaryAnimation) => child,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            debugPrint(id.toString() +
+                ' Primary animation: ' +
+                animation.value.toString() +
+                " " +
+                animation.status.toString());
+            debugPrint(id.toString() +
+                ' Secondary animation: ' +
+                secondaryAnimation.value.toString() +
+                " " +
+                secondaryAnimation.status.toString());
+            return DualTransitionBuilder(
+                animation: animation,
+                forwardBuilder: (BuildContext context, Animation<double> animation, Widget? child) {
+                  return ScaleTransition(
+                    scale: animation,
+                    child: child,
+                  );
+                },
+                reverseBuilder: (BuildContext context, Animation<double> animation, Widget? child) {
+                  return ScaleTransition(
+                    scale: ReverseAnimation(secondaryAnimation),
+                    child: child,
+                  );
+                },
+                child: DualTransitionBuilder(
+                    animation: animation,
+                    forwardBuilder: (BuildContext context, Animation<double> animation, Widget? child) {
+                      return ScaleTransition(
+                        scale: animation,
+                        child: child,
+                      );
+                    },
+                    reverseBuilder: (BuildContext context, Animation<double> animation, Widget? child) {
+                      return ScaleTransition(
+                        scale: ReverseAnimation(animation),
+                        child: child,
+                      );
+                    },
+                    child: child));
+          },
+        );
 }

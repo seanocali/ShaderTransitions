@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shader_transitions/shader_canvas.dart';
+import 'package:shader_transitions/shader_page_route.dart';
 import 'dart:ui' as ui;
 
 import 'package:shader_transitions/shader_transition.dart';
@@ -14,65 +15,275 @@ Future<void> main() async {
   _shaderBuilderGridFlip = await ui.FragmentProgram.fromAsset('shaders/grid_flip.frag');
   _shaderBuilderPageTurn = await ui.FragmentProgram.fromAsset('shaders/page_turn.frag');
   _shaderBuilderMorph = await ui.FragmentProgram.fromAsset('shaders/morph.frag');
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 ui.FragmentProgram? _shaderBuilderRadial;
 ui.FragmentProgram? _shaderBuilderGridFlip;
 ui.FragmentProgram? _shaderBuilderPageTurn;
 ui.FragmentProgram? _shaderBuilderMorph;
+int _animationDuration = 2000;
 
+final List<Widget> maskShaderWidgets = [
+  const ShaderTransitionDemo(name: "Radial\r\n(Alpha Mask)", shaderTransition: getRadialTransition,),
+  const ShaderTransitionDemo(name: "Radial\r\n(Alpha Mask)", shaderTransition: getRadialTransition,),
+  const ShaderTransitionDemo(name: "Radial\r\n(Alpha Mask)", shaderTransition: getRadialTransition,),
+  const ShaderTransitionDemo(name: "Radial\r\n(Alpha Mask)", shaderTransition: getRadialTransition,),
 
+];
+
+final List<Widget> textureShaderWidgets = [
+  const ShaderTransitionDemo(name: "Grid Flip\r\n(Dual Texture)", shaderTransition: getGridFlipTransition,),
+  const ShaderTransitionDemo(name: "Page Turn\r\n(Dual Texture)", shaderTransition: getPageTurnTransition,),
+  const ShaderTransitionDemo(name: "Morph\r\n(Dual Texture)", shaderTransition: getMorphTransition,),
+];
+
+List<Widget> _getPages(){
+  return [
+    ExamplePage(child: buildExamplesGrid(maskShaderWidgets)),
+    ExamplePage(child: buildExamplesGrid(textureShaderWidgets)),
+  ];
+}
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Shader Transition Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+      home: Scaffold(
+        // Use an empty Scaffold as the 'starting point'
+        body: Builder(
+          builder: (BuildContext context) {
+            // Schedule a post-frame callback to replace the current 'empty' route
+            // with a custom route to Page One after the app is built
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final myHomePage = MyHomePage();
+              final id = myHomePage.hashCode;
+              Navigator.of(context).pushReplacement(ShaderPageRoute(child: myHomePage, id: id));
+            });
+            return Container(); // Placeholder for the initial 'nothing' state
+          },
+        ),
       ),
-      home: //MainPage(),
-      Scaffold(body: buildViewportConstrainedGrid()),
     );
   }
 }
 
-Widget buildViewportConstrainedGrid() {
-  // List of distinct widgets
-  final List<Widget> distinctWidgets = [
-    const ShaderTransitionDemo(name: "Radial\r\n(Alpha Mask)", shaderTransition: getRadialTransition,),
-    const ShaderTransitionDemo(name: "Grid Flip\r\n(Dual Texture)", shaderTransition: getGridFlipTransition,),
-    const ShaderTransitionDemo(name: "Page Turn\r\n(Dual Texture)", shaderTransition: getPageTurnTransition,),
-    const ShaderTransitionDemo(name: "Morph\r\n(Dual Texture)", shaderTransition: getMorphTransition,),
+class MyHomePage extends StatefulWidget {
+  @override
+  _MyHomePageState createState() => _MyHomePageState();
+}
 
-    Container(
-      color: Colors.red,
-      child: FittedBox(
-        fit: BoxFit.contain,
-        child: Text('Your Text Here'),
+class _MyHomePageState extends State<MyHomePage> {
+  int _currentIndex = 0;
+
+
+
+  void _onTabTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _getPages()[_currentIndex],
+    );
+  }
+}
+
+class ExamplePage extends StatefulWidget {
+  const ExamplePage({super.key, required this.child});
+  final Widget child;
+  @override
+  State<ExamplePage> createState() => _ExamplePageState();
+}
+
+class _ExamplePageState extends State<ExamplePage> {
+
+  List<String> dropdownItems = <String>['One', 'Two', 'Three', 'Four'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Container(decoration: BoxDecoration(color: Colors.purpleAccent.withAlpha(100), borderRadius: BorderRadius.all(Radius.circular(40))),
+                child: Padding(
+                  padding: const EdgeInsets.all(18.0),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(_instructions,
+                        style: TextStyle(color: Colors.grey.shade800, fontSize: 16, fontWeight: FontWeight.w600)),
+                  ),
+                ),),
+            ),
+            // child: const Column(
+            //   children: [
+            //     Text("Tap an item below to demonstrate the ShaderTransition in an AnimatedSwitcher. Double-tap to skip rebuild (not recommended for Mask shaders)."),
+            //     Text(""),
+            //     Text("Change pages in the AppBar to demostrate the ShaderTransition in a PageRoute"),
+            //
+            //   ],
+            // ),
+          ),
+
+          Flexible(
+            flex: 12,
+            child: widget.child,
+          ),
+          Expanded(flex: 2,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Container(
+                        height: 100,
+                        decoration: BoxDecoration(color: Colors.purpleAccent.withAlpha(100), borderRadius: const BorderRadius.all(Radius.circular(50))),
+                        child: Column(
+                          children: [
+
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 8.0, left: 8.0, right: 8.0),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text("Page Navigation Transition",
+                                      style: TextStyle(color: Colors.grey.shade800, fontSize: 20,)),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                                child: DropdownButton<String>(
+                              onChanged: (String? selected){},
+                              items: dropdownItems.map<DropdownMenuItem<String>>((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Container(
+                          height: 100,
+                          decoration: BoxDecoration(color: Colors.purpleAccent.withAlpha(100), borderRadius: BorderRadius.all(Radius.circular(50))),
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 8.0, left: 8.0, right: 8.0),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text("Animation Duration",
+                                        style: TextStyle(color: Colors.grey.shade800, fontSize: 20,)),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Slider(
+                                  min: 0,
+                                  max: 5000,
+                                  divisions: 500,
+                                  label: "${_animationDuration.toString()}ms",
+                                  value: _animationDuration.toDouble(),
+                                  onChanged: (double value) {
+                                    setState(() {
+                                      _animationDuration = value.toInt();
+                                    });
+                                  },),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ))
+                ],
+              )),
+          Expanded(
+            flex: 2,
+              child: Container(
+                padding: EdgeInsets.only(top: 10, bottom: 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: <Widget>[
+                    TextButton(
+                      onPressed: () {
+                        final page = _getPages()[0];
+                        final id = page.hashCode;
+                        Navigator.of(context).push(ShaderPageRoute(
+                          child: page, id: id,
+                        ));
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(Icons.layers),
+                          Text('Mask Shaders'),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        final page = _getPages()[1];
+                        final id = page.hashCode;
+                        Navigator.of(context).push(ShaderPageRoute(
+                          child: page,
+                          id: id,
+                        ));
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(Icons.image),
+                          Text('Texture Shaders'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+          )
+        ],
       ),
-    ),
-    Container(color: Colors.purple), // Fifth distinct widget
-    Container(color: Colors.yellow), // Sixth distinct widget
-    // Add more widgets as needed
-  ];
+    );
+  }
+}
+
+
+
+Widget buildExamplesGrid(List<Widget> distinctWidgets) {
+  // List of distinct widgets
+
 
   return LayoutBuilder(
     builder: (context, constraints) {
       double itemWidth = constraints.maxWidth / 2; // For two columns
-      double itemHeight = constraints.maxHeight / 3; // For three rows
+      double itemHeight = constraints.maxHeight / 2; // For three rows
 
       return GridView.builder(
         physics: const NeverScrollableScrollPhysics(), // Disable scrolling
         gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: itemWidth,
           childAspectRatio: itemWidth / itemHeight,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
         ),
         itemCount: distinctWidgets.length,
         itemBuilder: (context, index) {
@@ -199,10 +410,13 @@ class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
           children: [
             AnimatedSwitcher(
               key: _forceRebuildKey,
-                duration: const Duration(milliseconds: 3000),
+                duration: Duration(milliseconds: _animationDuration),
                 child: child,
                 transitionBuilder: (Widget child, Animation<double> animation) {
-                  return widget.shaderTransition(animation, child);
+                  return Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: widget.shaderTransition(animation, child),
+                  );
                 }
                 ),
             Container(
@@ -214,7 +428,7 @@ class _ShaderTransitionDemoState extends State<ShaderTransitionDemo> {
                   child: FittedBox(
                     fit: BoxFit.contain,
                     child: Padding(
-                      padding: const EdgeInsets.all(8.0),
+                      padding: const EdgeInsets.all(32.0),
                       child: Text(widget.name,
                           style: TextStyle(color: Colors.grey.shade800, fontSize: 40, fontStyle: FontStyle.italic)),
                     ),
@@ -358,3 +572,9 @@ class _StaticTextureShaderTestState extends State<StaticTextureShaderTest> {
     );
   }
 }
+
+const String _instructions = """
+1. Tap an item for widget-to-widget transition (AnimatedSwitcher).
+2. Double-Tap item to skip rebuild (better performance, worse interrupt behavior).
+3. Select a shader in dropdown and change screens for page route transition.
+4. Use slider to adjust transition duration.""";
