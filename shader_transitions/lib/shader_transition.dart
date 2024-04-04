@@ -85,6 +85,11 @@ class ShaderTransition extends StatefulWidget {
 
 class _ShaderTransitionState extends State<ShaderTransition> {
   late Widget _child;
+  late bool _reverseAnimations;
+  bool _animationHasListener = false;
+  bool _animationHasStatusListener = false;
+  Size? _childSize;
+  bool _animatedSwitcherMode = false;
   int? _ancestorId;
   bool _isOldWidget = false;
   bool _wasInterrupted = false;
@@ -97,6 +102,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
   BoxConstraints? _constraints;
   double _pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
   bool _clear = false;
+
   ShaderMode get _shaderMode {
     if (widget.texture1Index != null && widget.texture0Index != null) {
       return ShaderMode.dualTexture;
@@ -111,53 +117,80 @@ class _ShaderTransitionState extends State<ShaderTransition> {
 
   @override
   void initState() {
+    super.initState();
+    _reverseAnimations = widget.reverseAnimations;
+    _childSize = widget.childSize;
     _ancestorId = _getAncestorId();
+
     if (_ancestorId == null) {
       throw Exception(
           "ShaderTransition can't identify a common ancestor and cannot function. Make sure it is used in an AnimatedSwitcher or DualTransitionBuilder or set the ancestorKey field");
     } else {
       _progress = widget.animation!.value;
-      widget.animation!.addStatusListener(_animationStatusChange);
 
-      ///Wraping child widget so that shader will update if widget resizes.
-      _child = NotificationListener<SizeChangedLayoutNotification>(
-          onNotification: sizeChanged,
-          child: SizeChangedLayoutNotifier(
-            child: widget.child,
-          ));
 
       /// Necessary to track active instances within the same AnimatedSwitcher so that stored images are
       /// removed from memory when no longer needed.
       if (!ShaderTransition._activeInstances.containsKey(_ancestorId)) {
         ShaderTransition._activeInstances[_ancestorId!] = HashSet<int>();
       }
-      ShaderTransition._activeInstances[_ancestorId!]!.add(hashCode);
 
-      super.initState();
+      if (ShaderTransition._activeInstances[_ancestorId!]!.length < 2) {
+        ShaderTransition._activeInstances[_ancestorId!]!.add(hashCode);
 
-      if (widget.animation!.status == AnimationStatus.forward) {
-        _isIncomingLayer = true;
-      }
+        ///Wraping child widget so that shader will update if widget resizes.
+        _child = NotificationListener<SizeChangedLayoutNotification>(
+            onNotification: sizeChanged,
+            child: SizeChangedLayoutNotifier(
+              child: widget.child,
+            ));
 
-      if (widget.animation!.status == AnimationStatus.forward) {
-        _initializePreAnimatedLayer();
+
+        if (_animatedSwitcherMode){
+          _addAnimationStatusListener(widget.animation!, _animationStatusChange);
+        }
+        else{
+          /// Assuming this is a PageRoute transition and thus transitions the entire viewport.
+          /// This is also necessary to set the contratins as layout capture will not work
+          /// in a PageRoute TransitionBuilder.
+          final double widthScreen = WidgetsBinding
+              .instance.platformDispatcher.views.first.physicalSize.width /
+              WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+
+          final double heightScreen = WidgetsBinding
+              .instance.platformDispatcher.views.first.physicalSize.height /
+              WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+          _constraints = BoxConstraints(maxWidth: widthScreen, maxHeight: heightScreen);
+          _childSize = Size(_constraints!.maxWidth, _constraints!.maxHeight);
+        }
+
+        if (widget.animation!.status == AnimationStatus.forward){
+          _isIncomingLayer = true;
+          _initializePreAnimatedLayer();
+        }
+        else if (widget.animation!.status == AnimationStatus.reverse){
+          _reverseAnimations = !_reverseAnimations;
+          _initializePreAnimatedLayer();
+        }
+        else{
+          _forceShowChild = true;
+        }
       }
     }
   }
 
+  ///
+  /// This also sets a flag if the transition is used in an AnimatedSwitcher (which is its primary intended use case).
   int? _getAncestorId() {
+    final animatedSwitcherState = context.findAncestorStateOfType<State<AnimatedSwitcher>>();
+    _animatedSwitcherMode == (animatedSwitcherState != null);
     if (widget.ancestorKey != null) {
       return widget.ancestorKey.hashCode;
     }
-    final animatedSwitcherState = context.findAncestorStateOfType<State<AnimatedSwitcher>>();
     if (animatedSwitcherState != null) {
       return animatedSwitcherState.hashCode;
     }
-    final dualTransitionBuilder = context.findAncestorStateOfType<State<DualTransitionBuilder>>();
-    if (dualTransitionBuilder != null) {
-      return dualTransitionBuilder.hashCode;
-    }
-    return null;
+    throw Exception("ShaderTransition missing ancestorKey. Key must be provided if not used in an AnimatedSwitcher");
   }
 
   void _animationStatusChange(AnimationStatus status) {
@@ -178,7 +211,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
   }
 
   Future<void> _initializedRebuiltCompletedLayer() async {
-    await createImageAndGetSize(widget.childSize);
+    await createImageAndGetSize(_childSize);
     int timeout = 100;
     bool siblingExists = false;
     while (timeout > 0 && !siblingExists) {
@@ -198,7 +231,41 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     await _initializeShader();
     _shaderUniformsSet = true;
     if (widget.animation != null) {
-      widget.animation!.addListener(animateFrame);
+      _addAnimationListener(widget.animation!, animateFrame);
+    }
+  }
+
+  void _addAnimationListener(Animation<double> animation, Function() listener){
+    animation.addListener(listener);
+    _animationHasListener = true;
+  }
+
+  void _removeAnimationListener(Animation<double> animation, Function() listener){
+    if (_animationHasListener){
+      _animationHasListener = false;
+      try{
+        animation.removeListener(listener);
+      }
+      catch(e){
+        debugPrint(e.toString());
+      }
+    }
+  }
+
+  void _addAnimationStatusListener(Animation<double> animation, Function(AnimationStatus) listener){
+    animation.addStatusListener(listener);
+    _animationHasStatusListener = true;
+  }
+
+  void _removeAnimationStatusListener(Animation<double> animation, Function(AnimationStatus) listener){
+    if (_animationHasStatusListener){
+      _animationHasStatusListener = false;
+      try{
+        animation.removeStatusListener(listener);
+      }
+      catch(e){
+        debugPrint(e.toString());
+      }
     }
   }
 
@@ -232,7 +299,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
       if (_shader != null && widget.animation != null) {
         _progress = widget.animation!.value;
         setState(() {
-          if (_isOldWidget ^ widget.reverseAnimations) {
+          if (_isOldWidget ^ _reverseAnimations) {
             _shader!.setFloat(widget.progressIndex, 1 - _progress);
           } else {
             _shader!.setFloat(widget.progressIndex, _progress);
@@ -244,9 +311,8 @@ class _ShaderTransitionState extends State<ShaderTransition> {
 
   @override
   void dispose() {
-    widget.animation!.removeListener(animateFrame);
-    widget.animation!.removeStatusListener(_animationStatusChange);
-
+    _removeAnimationListener(widget.animation!, animateFrame);
+    _removeAnimationStatusListener(widget.animation!, _animationStatusChange);
     if (ShaderTransition._activeInstances.containsKey(_ancestorId)) {
       ShaderTransition._activeInstances[_ancestorId]!.removeWhere((e) => e == hashCode);
       if (ShaderTransition._activeInstances[_ancestorId]!.isEmpty) {
@@ -254,7 +320,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
         /// This indicates that this object's parent AnimatedSwitcher is no longer active. Clears any stored
         /// image captures in the static map.
         ShaderTransition._activeInstances.remove(_ancestorId);
-        if (_imageOfChild != null && ShaderTransition._savedImagesMap[_ancestorId] != _imageOfChild){
+        if (_imageOfChild != null && ShaderTransition._savedImagesMap[_ancestorId] != _imageOfChild) {
           _imageOfChild!.dispose();
           _imageOfChild = null;
         }
@@ -274,7 +340,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
           shader.setFloat(entry.key, entry.value);
         }
       }
-      Size? childSize = await createImageAndGetSize(widget.childSize);
+      Size? childSize = await createImageAndGetSize(_childSize);
 
       await setImageSamplers(shader);
 
@@ -310,13 +376,17 @@ class _ShaderTransitionState extends State<ShaderTransition> {
   Future<RenderRepaintBoundary> getChildBoundary() async {
     RenderRepaintBoundary boundary;
     final Completer<RenderRepaintBoundary> completer = Completer();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      boundary = await WidgetToImage.captureUnrenderedWidgetToBoundary(_child, _constraints);
-      completer.complete(boundary);
-    });
-    setState(() {
-      _layoutCapture = true;
-    });
+    if (_constraints == null){
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (_constraints != null) {
+          boundary = await WidgetToImage.captureUnrenderedWidgetToBoundary(_child, _constraints!);
+          completer.complete(boundary);
+        }
+      });
+      setState(() {
+        _layoutCapture = true;
+      });
+    }
     return completer.future;
   }
 
@@ -345,7 +415,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     Widget output = _child;
     _pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     if (_clear) {
-      widget.animation!.removeListener(animateFrame);
+      _removeAnimationListener(widget.animation!, animateFrame);
       output = const SizedBox.shrink();
     } else if (_layoutCapture) {
       _layoutCapture = false;
@@ -360,12 +430,12 @@ class _ShaderTransitionState extends State<ShaderTransition> {
         output = _wasInterrupted
             ? const SizedBox.shrink()
             : ShaderMask(
-                shaderCallback: (bounds) {
-                  return _shader!;
-                },
-                blendMode: _isOldWidget ^ widget.reverseAnimations ? BlendMode.dstOut : BlendMode.dstIn,
-                child: _child,
-              );
+          shaderCallback: (bounds) {
+            return _shader!;
+          },
+          blendMode: _isOldWidget ^ _reverseAnimations ? BlendMode.dstOut : BlendMode.dstIn,
+          child: _child,
+        );
       } else {
         if (_imageOfChild != null) {
           output = SizedBox(

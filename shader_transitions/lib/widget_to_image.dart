@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 class WidgetToImage{
 
@@ -39,25 +40,27 @@ class WidgetToImage{
     return completer.future;
   }
 
-  static Future<ui.Image> captureUnrenderedWidgetAsImage(Widget widget, BoxConstraints? constraints) async{
+  static Future<ui.Image?> captureUnrenderedWidgetAsImage(Widget widget, BoxConstraints constraints) async{
     final boundary = await captureUnrenderedWidgetToBoundary(widget, constraints);
     final double pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     return await boundary.toImage(pixelRatio: pixelRatio);
+    return null;
   }
 
-  static Future<RenderRepaintBoundary> captureUnrenderedWidgetToBoundary(Widget widget, BoxConstraints? constraints) async {
+  static Future<RenderRepaintBoundary> captureUnrenderedWidgetToBoundary(Widget widget, BoxConstraints constraints) async {
+    final completer = Completer<RenderRepaintBoundary>();
     final RenderRepaintBoundary boundary = RenderRepaintBoundary();
     final platformDispatcher = WidgetsBinding.instance.platformDispatcher;
     final fallBackView = platformDispatcher.views.first;
     final view = fallBackView;
-
+    final Locale currentLocale = WidgetsBinding.instance.platformDispatcher.locales.first;
     final screenSize = WidgetsBinding.instance.platformDispatcher.views.first.physicalSize;
     final double pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
 
     // Use constraints to determine size
     final logicalSize = Size(
-      constraints != null && constraints.hasBoundedWidth ? constraints.maxWidth : screenSize.width / pixelRatio,
-      constraints != null && constraints.hasBoundedHeight ? constraints.maxHeight : screenSize.height / pixelRatio,
+      constraints.hasBoundedWidth ? constraints.maxWidth : screenSize.width / pixelRatio,
+      constraints.hasBoundedHeight ? constraints.maxHeight : screenSize.height / pixelRatio,
     );
 
     final RenderView renderView = RenderView(
@@ -75,27 +78,41 @@ class WidgetToImage{
     pipelineOwner.rootNode = renderView;
     renderView.prepareInitialFrame();
 
-    final RenderObjectToWidgetElement<RenderBox> rootElement =
-    RenderObjectToWidgetAdapter<RenderBox>(
+    RenderObjectToWidgetElement<RenderBox> rootElement;
+
+    final preRender = RenderObjectToWidgetAdapter<RenderBox>(
       container: boundary,
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: ConstrainedBox(
-          constraints: constraints ?? const BoxConstraints.tightFor(),
-          child: widget,
+      child: MediaQuery(
+        data: MediaQueryData(size: logicalSize, devicePixelRatio: pixelRatio),
+        child: Localizations(
+          locale: currentLocale,
+          delegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          child: Directionality(
+            textDirection: TextDirection.ltr, // Consider dynamic setting for RTL languages
+            child: widget,
+          ),
         ),
       ),
-    ).attachToRenderTree(buildOwner);
-    final completer = Completer<RenderRepaintBoundary>();
+    );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      buildOwner.buildScope(rootElement);
-      buildOwner.finalizeTree();
-      pipelineOwner.flushLayout();
-      pipelineOwner.flushCompositingBits();
-      pipelineOwner.flushPaint();
-      completer.complete(boundary);
-    });
+    try{
+      rootElement = preRender.attachToRenderTree(buildOwner);
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        buildOwner.buildScope(rootElement);
+        buildOwner.finalizeTree();
+        pipelineOwner.flushLayout();
+        pipelineOwner.flushCompositingBits();
+        pipelineOwner.flushPaint();
+        completer.complete(boundary);
+      });
+    }
+    catch (e){
+      debugPrint(e.toString());
+    }
 
     return completer.future;
   }

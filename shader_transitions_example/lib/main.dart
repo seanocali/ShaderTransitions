@@ -15,7 +15,7 @@ Future<void> main() async {
   _shaderBuilderGridFlip = await ui.FragmentProgram.fromAsset('shaders/grid_flip.frag');
   _shaderBuilderPageTurn = await ui.FragmentProgram.fromAsset('shaders/page_turn.frag');
   _shaderBuilderMorph = await ui.FragmentProgram.fromAsset('shaders/morph.frag');
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 ui.FragmentProgram? _shaderBuilderRadial;
@@ -40,12 +40,16 @@ final List<Widget> textureShaderWidgets = [
 
 List<Widget> _getPages(){
   return [
-    ExamplePage(child: buildExamplesGrid(maskShaderWidgets)),
-    ExamplePage(child: buildExamplesGrid(textureShaderWidgets)),
+    ExamplePage(backgroundColor: Colors.grey, child: SizedBox.shrink()),
+    ExamplePage(backgroundColor: Colors.tealAccent, child: SizedBox.shrink()),
+     //ExamplePage(backgroundColor: Colors.grey, child: buildExamplesGrid(maskShaderWidgets)),
+     //ExamplePage(backgroundColor: Colors.tealAccent, child: buildExamplesGrid(textureShaderWidgets)),
   ];
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -55,10 +59,9 @@ class MyApp extends StatelessWidget {
           builder: (BuildContext context) {
             // Schedule a post-frame callback to replace the current 'empty' route
             // with a custom route to Page One after the app is built
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              final myHomePage = MyHomePage();
-              final id = myHomePage.hashCode;
-              Navigator.of(context).pushReplacement(ShaderPageRoute(child: myHomePage, id: id));
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              //Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => MyHomePage(),));
+              await Navigator.of(context).pushReplacement(ShaderPageRoute(builder: (context) => MyHomePage(), shaderBuilder: _shaderBuilderRadial!, ancestorKey: UniqueKey()));
             });
             return Container(); // Placeholder for the initial 'nothing' state
           },
@@ -93,8 +96,9 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 class ExamplePage extends StatefulWidget {
-  const ExamplePage({super.key, required this.child});
+  const ExamplePage({super.key, required this.child, this.backgroundColor});
   final Widget child;
+  final Color? backgroundColor;
   @override
   State<ExamplePage> createState() => _ExamplePageState();
 }
@@ -106,6 +110,7 @@ class _ExamplePageState extends State<ExamplePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: widget.backgroundColor,
       body: Column(
         children: [
           Expanded(
@@ -226,13 +231,9 @@ class _ExamplePageState extends State<ExamplePage> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: <Widget>[
                     TextButton(
-                      onPressed: () {
-                        final page = _getPages()[0];
-                        final id = page.hashCode;
-                        Navigator.of(context).push(ShaderPageRoute(
-                          child: page, id: id,
-                        ));
-                      },
+                      onPressed: () async {
+                        await Navigator.of(context).pushReplacement(ShaderPageRoute(builder: (context) => _getPages()[0], shaderBuilder: _shaderBuilderRadial!, ancestorKey: UniqueKey()));
+                        },
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
@@ -242,14 +243,10 @@ class _ExamplePageState extends State<ExamplePage> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {
-                        final page = _getPages()[1];
-                        final id = page.hashCode;
-                        Navigator.of(context).push(ShaderPageRoute(
-                          child: page,
-                          id: id,
-                        ));
-                      },
+                      onPressed: () async {
+                        final ancestorKey = UniqueKey();
+                        await Navigator.of(context).pushReplacement(ShaderPageRoute(builder: (context) => _getPages()[1], shaderBuilder: _shaderBuilderRadial!, ancestorKey: ancestorKey));
+                        },
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
