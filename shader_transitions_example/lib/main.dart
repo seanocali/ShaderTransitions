@@ -54,6 +54,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
+        backgroundColor: Colors.black,
         // Use an empty Scaffold as the 'starting point'
         body: Builder(
           builder: (BuildContext context) {
@@ -63,7 +64,7 @@ class MyApp extends StatelessWidget {
               //Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => MyHomePage(),));
               await Navigator.of(context).pushReplacement(ShaderPageRoute(builder: (context) => MyHomePage(), shaderBuilder: _shaderBuilderRadial!, ancestorKey: UniqueKey()));
             });
-            return Container(); // Placeholder for the initial 'nothing' state
+            return SizedBox.shrink(); // Placeholder for the initial 'nothing' state
           },
         ),
       ),
@@ -77,20 +78,11 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _currentIndex = 0;
-
-
-
-  void _onTabTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _getPages()[_currentIndex],
+      body: _getPages()[0],
     );
   }
 }

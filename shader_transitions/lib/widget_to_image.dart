@@ -66,7 +66,7 @@ class WidgetToImage{
     final RenderView renderView = RenderView(
       view: view,
       child: RenderPositionedBox(child: boundary),
-      configuration: ViewConfiguration(size: logicalSize, devicePixelRatio: pixelRatio),
+      configuration: ViewConfiguration(devicePixelRatio: pixelRatio),
     );
 
     final pipelineOwner = PipelineOwner();

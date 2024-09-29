@@ -102,6 +102,7 @@ class _ShaderTransitionState extends State<ShaderTransition> {
   BoxConstraints? _constraints;
   double _pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
   bool _clear = false;
+  Completer<void>? _shaderReadyCompleter;
 
   ShaderMode get _shaderMode {
     if (widget.texture1Index != null && widget.texture0Index != null) {
@@ -227,17 +228,36 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     }
   }
 
+  // Future<void> _initializePreAnimatedLayer() async {
+  //   // Remove existing listener if any
+  //   _removeAnimationListener(widget.animation!, animateFrame);
+  //
+  //   // Continue with initialization
+  //   await _initializeShader();
+  //   _shaderUniformsSet = true;
+  //   if (widget.animation != null) {
+  //     _addAnimationListener(widget.animation!, animateFrame);
+  //   }
+  // }
+
   Future<void> _initializePreAnimatedLayer() async {
+    _shaderReadyCompleter = Completer<void>();
+    _removeAnimationListener(widget.animation!, animateFrame);
     await _initializeShader();
     _shaderUniformsSet = true;
+    _shaderReadyCompleter?.complete();
+
     if (widget.animation != null) {
       _addAnimationListener(widget.animation!, animateFrame);
     }
   }
 
-  void _addAnimationListener(Animation<double> animation, Function() listener){
-    animation.addListener(listener);
-    _animationHasListener = true;
+
+  void _addAnimationListener(Animation<double> animation, Function() listener) {
+    if (!_animationHasListener) {
+      animation.addListener(listener);
+      _animationHasListener = true;
+    }
   }
 
   void _removeAnimationListener(Animation<double> animation, Function() listener){
@@ -412,45 +432,102 @@ class _ShaderTransitionState extends State<ShaderTransition> {
 
   @override
   Widget build(BuildContext context) {
-    Widget output = _child;
     _pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+
     if (_clear) {
       _removeAnimationListener(widget.animation!, animateFrame);
-      output = const SizedBox.shrink();
+      return Container();
     } else if (_layoutCapture) {
-      _layoutCapture = false;
-      output = LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+      return LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
         _constraints = constraints;
-        return _isIncomingLayer ? const SizedBox.shrink() : _child;
+        return _isIncomingLayer ? Container() : _child;
       });
     } else if (_forceShowChild) {
-      output = _child;
-    } else if (_shader != null && widget.animation != null && _shaderUniformsSet && !widget.animation!.isCompleted) {
-      if (_shaderMode == ShaderMode.mask) {
-        output = _wasInterrupted
-            ? const SizedBox.shrink()
-            : ShaderMask(
-          shaderCallback: (bounds) {
-            return _shader!;
-          },
-          blendMode: _isOldWidget ^ _reverseAnimations ? BlendMode.dstOut : BlendMode.dstIn,
-          child: _child,
-        );
-      } else {
-        if (_imageOfChild != null) {
-          output = SizedBox(
-            width: _imageOfChild!.width.toDouble() / _pixelRatio,
-            height: _imageOfChild!.height / _pixelRatio,
-            child: ShaderCanvas(
-              shader: _shader!,
-              key: ValueKey(_progress),
-            ),
-          );
-        }
-      }
+      return _child;
+    } else {
+      // Use FutureBuilder to wait for shader readiness
+      return FutureBuilder<void>(
+        future: _shaderReadyCompleter?.future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done && _shader != null && widget.animation != null && !widget.animation!.isCompleted) {
+            // Shader is ready, render with shader effects
+            if (_shaderMode == ShaderMode.mask) {
+              return ShaderMask(
+                shaderCallback: (bounds) => _shader!,
+                blendMode: _isOldWidget ^ _reverseAnimations ? BlendMode.dstOut : BlendMode.dstIn,
+                child: _child,
+              );
+            } else if (_imageOfChild != null) {
+              return SizedBox(
+                width: _imageOfChild!.width.toDouble() / _pixelRatio,
+                height: _imageOfChild!.height / _pixelRatio,
+                child: ShaderCanvas(
+                  shader: _shader!,
+                  key: ValueKey(_progress),
+                ),
+              );
+            } else {
+              // Image is not ready yet, render child without shader
+              return _child;
+            }
+          } else {
+            // Shader is not ready yet, render child without shader to avoid black flash
+            return _child;
+          }
+        },
+      );
     }
-    return output;
   }
+
+  // @override
+  // Widget build(BuildContext context) {
+  //   _pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+  //
+  //   if (_clear) {
+  //     _removeAnimationListener(widget.animation!, animateFrame);
+  //     return Container();
+  //   } else if (_layoutCapture) {
+  //     // Capturing layout constraints before proceeding
+  //     return LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+  //       _constraints = constraints;
+  //       // If this is the incoming layer, we don't render anything yet
+  //       // Otherwise, we render the child widget
+  //       return _isIncomingLayer ? Container() : _child;
+  //     });
+  //   } else if (_forceShowChild) {
+  //     // If we need to force show the child (e.g., after interruption)
+  //     return _child;
+  //   } else if (_shader != null && widget.animation != null && _shaderUniformsSet && !widget.animation!.isCompleted) {
+  //     // Shader is ready, animation is in progress
+  //     if (_shaderMode == ShaderMode.mask) {
+  //       return ShaderMask(
+  //         shaderCallback: (bounds) {
+  //           return _shader!;
+  //         },
+  //         blendMode: _isOldWidget ^ _reverseAnimations ? BlendMode.dstOut : BlendMode.dstIn,
+  //         child: _child,
+  //       );
+  //     } else {
+  //       if (_imageOfChild != null) {
+  //         return SizedBox(
+  //           width: _imageOfChild!.width.toDouble() / _pixelRatio,
+  //           height: _imageOfChild!.height / _pixelRatio,
+  //           child: ShaderCanvas(
+  //             shader: _shader!,
+  //             key: ValueKey(_progress),
+  //           ),
+  //         );
+  //       } else {
+  //         // If we don't have the image yet, render the child without shader
+  //         return _child;
+  //       }
+  //     }
+  //   } else {
+  //     // Shader is not ready yet, or animation is completed
+  //     // Render the child without shader effects to avoid black flash
+  //     return _child;
+  //   }
+  // }
 }
 
 enum ShaderMode {
