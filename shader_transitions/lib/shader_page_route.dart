@@ -32,40 +32,6 @@ class ShaderPageRoute<T> extends PageRouteBuilder<T> {
   static Map<Key, ShaderTransition> incomingTransitions = {};
   static Map<Key, ShaderTransition> outgoingTransitions = {};
 
-  // static void incomingAnimationStatusChanged(){
-  //   if (_animation != null && _animation!.status != AnimationStatus.forward){
-  //     try{
-  //       _animation!.removeListener(outgoingAnimationStatusChanged);
-  //       debugPrint(" removed incominglistener");
-  //     }
-  //     catch(e){
-  //       debugPrint(e.toString());
-  //     }
-  //     _animation = null;
-  //     ShaderPageRoute.incomingTransitions.clear();
-  //   }
-  //   else{
-  //     ShaderPageRoute.incomingTransitions.clear();
-  //   }
-  // }
-  //
-  // static void outgoingAnimationStatusChanged(){
-  //   if (_secondaryAnimation != null && _secondaryAnimation!.status != AnimationStatus.forward){
-  //     try{
-  //       _secondaryAnimation!.removeListener(outgoingAnimationStatusChanged);
-  //       debugPrint(" removed outgoinglistener");
-  //     }
-  //     catch(e){
-  //       debugPrint(e.toString());
-  //     }
-  //       _secondaryAnimation = null;
-  //       ShaderPageRoute.outgoingTransitions.clear();
-  //   }
-  //   else{
-  //     ShaderPageRoute.outgoingTransitions.clear();
-  //   }
-  // }
-
 
   ShaderPageRoute({required this.builder, required this.shaderBuilder, required this.ancestorKey})
       : super(
@@ -73,272 +39,113 @@ class ShaderPageRoute<T> extends PageRouteBuilder<T> {
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
 
             if (animation.status == AnimationStatus.forward){
-                return ShaderTransition(
-                  animation: animation,
-                  ancestorKey: ancestorKey,
-                  shaderBuilder: shaderBuilder,
-                  floatUniforms: const {3: 1},
-                  child: child,
-                );
-                _animation = animation;
-                //debugPrint(" added incominglistener");
-                //animation.addListener(incomingAnimationStatusChanged);
+              final transition = ShaderTransition(
+                animation: animation,
+                ancestorKey: ancestorKey,
+                shaderBuilder: shaderBuilder,
+                floatUniforms: const {3: 1},
+                child: child,
+              );
+              return transition;
 
             }
             else if (secondaryAnimation.status == AnimationStatus.forward){
                 final reverseAnimation = ReverseAnimation(secondaryAnimation);
-                return ShaderTransition(
+                final transition = ShaderTransition(
                   animation: reverseAnimation,
                   ancestorKey: ancestorKey,
                   shaderBuilder: shaderBuilder,
                   floatUniforms: const {3: 1},
                   child: child,
                 );
-                _secondaryAnimation = reverseAnimation;
-                //debugPrint(" added outgoinglistener");
-                //reverseAnimation.addListener(outgoingAnimationStatusChanged);
+                return transition;
 
             }
             return child;
-
-
-
-            // if (animation.status == AnimationStatus.forward){
-            //   if (!incomingTransitions.containsKey(ancestorKey)){
-            //     incomingTransitions[ancestorKey] = ShaderTransition(
-            //       animation: animation,
-            //       ancestorKey: ancestorKey,
-            //       shaderBuilder: shaderBuilder,
-            //       floatUniforms: const {3: 1},
-            //       child: child,
-            //     );
-            //     _animation = animation;
-            //     debugPrint(" added incominglistener");
-            //     animation.addListener(incomingAnimationStatusChanged);
-            //   }
-            //   //debugPrint("Primary" + animation.status.toString() + " " + animation.value.toString());
-            //       return incomingTransitions[ancestorKey]!;
-            // }
-            // else if (secondaryAnimation.status == AnimationStatus.forward){
-            //   if (!outgoingTransitions.containsKey(ancestorKey)){
-            //     final reverseAnimation = ReverseAnimation(secondaryAnimation);
-            //     final status = reverseAnimation.status;
-            //     outgoingTransitions[ancestorKey] = ShaderTransition(
-            //       animation: reverseAnimation,
-            //       ancestorKey: ancestorKey,
-            //       shaderBuilder: shaderBuilder,
-            //       floatUniforms: const {3: 1},
-            //       child: child,
-            //     );
-            //     _secondaryAnimation = reverseAnimation;
-            //     debugPrint(" added outgoinglistener");
-            //     reverseAnimation.addListener(outgoingAnimationStatusChanged);
-            //   }
-            //   //debugPrint("Secondary" + secondaryAnimation.status.toString() + " " + secondaryAnimation.value.toString());
-            //   return outgoingTransitions[ancestorKey]!;
-            // }
-            // return child;
-            //
-
-
-            // return DualTransitionBuilder2(
-            //   animation: animation,
-            //   forwardBuilder: (
-            //       BuildContext context,
-            //       Animation<double> animation,
-            //       Widget? child,
-            //       ) {
-            //     debugPrint("Returned forwardBuilder " + animation.status.toString() + " " + animation.value.toString());
-            //     animateForwardBuilder++;
-            //     return ShaderTransition(
-            //       animation: animation,
-            //       ancestorKey: ancestorKey,
-            //       shaderBuilder: shaderBuilder,
-            //       floatUniforms: const {3: 1},
-            //       child: child!,
-            //     );
-            //     //return child!;
-            //   },
-            //   reverseBuilder: (
-            //       BuildContext context,
-            //       Animation<double> animation,
-            //       Widget? child,
-            //       ) {
-            //     debugPrint("Returned reverseBuilder " + animation.status.toString() + " " + animation.value.toString());
-            //     animateReverseBuilder++;
-            //     return child!;
-            //     //return ScaleTransition(scale: ReverseAnimation(animation), child: child);
-            //   },
-            //   child: DualTransitionBuilder2(
-            //     animation: ReverseAnimation(secondaryAnimation),
-            //     forwardBuilder: (
-            //         BuildContext context,
-            //         Animation<double> animation,
-            //         Widget? child,
-            //         ) {
-            //       debugPrint("Returned secondaryForwardBuilder " + secondaryAnimation.status.toString() + " " + secondaryAnimation.value.toString());
-            //       secondaryAnimateForwardBuilder++;
-            //       return child!;
-            //       //return ScaleTransition(scale: animation, child: child);
-            //     },
-            //     reverseBuilder: (
-            //         BuildContext context,
-            //         Animation<double> animation,
-            //         Widget? child,
-            //         ) {
-            //       debugPrint("Returned secondaryReverseBuilder " + secondaryAnimation.status.toString() + " " + secondaryAnimation.value.toString());
-            //       secondaryAnimateReverseBuilder++;
-            //       //return child!;
-            //       return ShaderTransition(
-            //         animation: secondaryAnimation,
-            //         ancestorKey: ancestorKey,
-            //         shaderBuilder: shaderBuilder,
-            //         floatUniforms: const {3: 1},
-            //         child: child!,
-            //       );
-            //       //return outgoingTransitions[ancestorKey]!;
-            //     },
-            //     child: child,
-            //   ),
-            // );
-
-            // return DualTransitionBuilder2(
-            //   animation: animation,
-            //   forwardBuilder: (
-            //       BuildContext context,
-            //       Animation<double> animation,
-            //       Widget? child,
-            //       ) {
-            //     debugPrint("Returned forwardBuilder " + animation.status.toString() + " " + animation.value.toString());
-            //     animateForwardBuilder++;
-            //     return ScaleTransition(scale: animation, child: child);
-            //     //return child!;
-            //   },
-            //   reverseBuilder: (
-            //       BuildContext context,
-            //       Animation<double> animation,
-            //       Widget? child,
-            //       ) {
-            //     debugPrint("Returned reverseBuilder " + animation.status.toString() + " " + animation.value.toString());
-            //     animateReverseBuilder++;
-            //     return child!;
-            //     //return ScaleTransition(scale: ReverseAnimation(animation), child: child);
-            //   },
-            //   child: DualTransitionBuilder2(
-            //     animation: ReverseAnimation(secondaryAnimation),
-            //     forwardBuilder: (
-            //         BuildContext context,
-            //         Animation<double> animation,
-            //         Widget? child,
-            //         ) {
-            //       debugPrint("Returned secondaryForwardBuilder " + secondaryAnimation.status.toString() + " " + secondaryAnimation.value.toString());
-            //       secondaryAnimateForwardBuilder++;
-            //       return child!;
-            //       //return ScaleTransition(scale: animation, child: child);
-            //     },
-            //     reverseBuilder: (
-            //         BuildContext context,
-            //         Animation<double> animation,
-            //         Widget? child,
-            //         ) {
-            //       debugPrint("Returned secondaryReverseBuilder " + secondaryAnimation.status.toString() + " " + secondaryAnimation.value.toString());
-            //       secondaryAnimateReverseBuilder++;
-            //       return ScaleTransition(scale: ReverseAnimation(animation), child: child);
-            //       //return outgoingTransitions[ancestorKey]!;
-            //     },
-            //     child: child,
-            //   ),
-            // );
-
-
-
-//             final ancestorKey = UniqueKey();
-//             final incomingTransition = ShaderTransition(
-//               animation: animation,
-//               ancestorKey: UniqueKey(), // Consider if you need a new key each time
-//               shaderBuilder: shaderBuilder,
-//               floatUniforms: const {3: 1},
-//               child: child,
-//             );
-//
-//             final outgoingTransition = ShaderTransition(
-//               animation: secondaryAnimation,
-//               ancestorKey: UniqueKey(), // Consider if you need a new key each time
-//               shaderBuilder: shaderBuilder,
-//               floatUniforms: const {3: 1},
-//               child: child,
-//             );
-//
-//
-//             debugPrint("ancestorKey: " + ancestorKey.toString() + animation.status.toString() + " " + secondaryAnimation.status.toString());
-//             if (animation.status == AnimationStatus.forward) {
-//               return incomingTransition;
-//             } else if (secondaryAnimation.status == AnimationStatus.forward) {
-//              return outgoingTransition;
-//             }
-// return child;
-
-            // return DualTransitionBuilder(
-            //   animation: animation,
-            //   forwardBuilder: (
-            //       BuildContext context,
-            //       Animation<double> animation,
-            //       Widget? child,
-            //       ) {
-            //     return ShaderTransition(
-            //         animation: animation,
-            //         ancestorKey: ancestorKey,
-            //         shaderBuilder: shaderBuilder,
-            //         floatUniforms: const {3 : 1},
-            //         child: child!);
-            //   },
-            //   reverseBuilder: (
-            //       BuildContext context,
-            //       Animation<double> animation,
-            //       Widget? child,
-            //       ) {
-            //     return ShaderTransition(
-            //         animation: animation,
-            //         reverseAnimations: true,
-            //         ancestorKey: ancestorKey,
-            //         shaderBuilder: shaderBuilder,
-            //         floatUniforms: const {3 : 1},
-            //         child: child!);
-            //   },
-            //   child: DualTransitionBuilder(
-            //     animation: secondaryAnimation,
-            //     forwardBuilder: (
-            //         BuildContext context,
-            //         Animation<double> animation,
-            //         Widget? child,
-            //         ) {
-            //       return ShaderTransition(
-            //           animation: animation,
-            //           reverseAnimations: true,
-            //           ancestorKey: ancestorKey,
-            //           shaderBuilder: shaderBuilder,
-            //           floatUniforms: const {3 : 1},
-            //           child: child!);
-            //     },
-            //     reverseBuilder: (
-            //         BuildContext context,
-            //         Animation<double> animation,
-            //         Widget? child,
-            //         ) {
-            //       final hasMediaQuery = MediaQuery.maybeOf(context) != null;
-            //       return ShaderTransition(
-            //           animation: animation,
-            //           ancestorKey: ancestorKey,
-            //           shaderBuilder: shaderBuilder,
-            //           floatUniforms: const {3 : 1},
-            //           child: child!);
-            //     },
-            //     child: child,
-            //   ),
-            // );
           },
         );
 
   @override
   Duration get transitionDuration => const Duration(milliseconds: 2000);
+}
+
+class _ShaderTransitionWidget extends StatefulWidget {
+  final Animation<double> animation;
+  final Animation<double> secondaryAnimation;
+  final Widget child;
+  final ui.FragmentProgram shaderBuilder;
+  final Key ancestorKey;
+
+  const _ShaderTransitionWidget({
+    required this.animation,
+    required this.secondaryAnimation,
+    required this.child,
+    required this.shaderBuilder,
+    required this.ancestorKey,
+  });
+
+  @override
+  _ShaderTransitionWidgetState createState() => _ShaderTransitionWidgetState();
+}
+
+class _ShaderTransitionWidgetState extends State<_ShaderTransitionWidget> {
+  bool _shaderReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeShader();
+  }
+
+  Future<void> _initializeShader() async {
+    // Ensure the shader is compiled and ready
+    // If any resources (like images) are needed, load them here
+
+    // Simulate asynchronous initialization if needed
+    // await Future.delayed(Duration(milliseconds: 100));
+
+    setState(() {
+      _shaderReady = true;
+     });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_shaderReady) {
+      // While shader is not ready, display the outgoing page
+      return _buildOutgoingPage(context);
+    }
+
+    // Shader is ready, proceed with the transition
+    if (widget.animation.status == AnimationStatus.forward) {
+      return ShaderTransition(
+        animation: widget.animation,
+        ancestorKey: widget.ancestorKey,
+        shaderBuilder: widget.shaderBuilder,
+        floatUniforms: const {3: 1},
+        child: widget.child,
+      );
+    } else if (widget.secondaryAnimation.status == AnimationStatus.forward) {
+      final reverseAnimation = ReverseAnimation(widget.secondaryAnimation);
+      return ShaderTransition(
+        animation: reverseAnimation,
+        ancestorKey: widget.ancestorKey,
+        shaderBuilder: widget.shaderBuilder,
+        floatUniforms: const {3: 1},
+        child: widget.child,
+      );
+    }
+
+    // Neither animation is active; display the child without transition
+    return widget.child;
+  }
+
+  Widget _buildOutgoingPage(BuildContext context) {
+    // Return the previous page's content to keep it visible
+    // Since we can't directly access the previous page's widget,
+    // we can use a placeholder or the current content
+
+    // For this example, we'll return a placeholder
+    return Container(color: Colors.black);
+  }
 }

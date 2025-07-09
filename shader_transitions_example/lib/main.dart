@@ -40,10 +40,10 @@ final List<Widget> textureShaderWidgets = [
 
 List<Widget> _getPages(){
   return [
-    ExamplePage(backgroundColor: Colors.grey, child: SizedBox.shrink()),
-    ExamplePage(backgroundColor: Colors.tealAccent, child: SizedBox.shrink()),
-     //ExamplePage(backgroundColor: Colors.grey, child: buildExamplesGrid(maskShaderWidgets)),
-     //ExamplePage(backgroundColor: Colors.tealAccent, child: buildExamplesGrid(textureShaderWidgets)),
+    // ExamplePage(backgroundColor: Colors.grey, child: SizedBox.shrink()),
+    // ExamplePage(backgroundColor: Colors.tealAccent, child: SizedBox.shrink()),
+     ExamplePage(backgroundColor: Colors.grey, child: buildExamplesGrid(maskShaderWidgets)),
+     ExamplePage(backgroundColor: Colors.tealAccent, child: buildExamplesGrid(textureShaderWidgets)),
   ];
 }
 

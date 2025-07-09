@@ -84,7 +84,7 @@ class ShaderTransition extends StatefulWidget {
 }
 
 class _ShaderTransitionState extends State<ShaderTransition> {
-  late Widget _child;
+  Widget _child = SizedBox.shrink();
   late bool _reverseAnimations;
   bool _animationHasListener = false;
   bool _animationHasStatusListener = false;
@@ -141,10 +141,12 @@ class _ShaderTransitionState extends State<ShaderTransition> {
 
         ///Wraping child widget so that shader will update if widget resizes.
         _child = NotificationListener<SizeChangedLayoutNotification>(
+          key: UniqueKey(),
             onNotification: sizeChanged,
             child: SizeChangedLayoutNotifier(
               child: widget.child,
             ));
+        debugPrint('New Child is ${_child.key.toString()}');
 
 
         if (_animatedSwitcherMode){
@@ -318,6 +320,9 @@ class _ShaderTransitionState extends State<ShaderTransition> {
     {
       if (_shader != null && widget.animation != null) {
         _progress = widget.animation!.value;
+        if (!_clear && !_layoutCapture && !_forceShowChild && _shader == null){
+          return;
+        }
         setState(() {
           if (_isOldWidget ^ _reverseAnimations) {
             _shader!.setFloat(widget.progressIndex, 1 - _progress);
@@ -428,6 +433,115 @@ class _ShaderTransitionState extends State<ShaderTransition> {
         shader.setImageSampler(widget.texture1Index!, dummyImage);
       }
     }
+  }
+
+
+  // @override
+  // Widget build(BuildContext context) {
+  //   _pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+  //
+  //   if (_clear) {
+  //     return _buildWithDebugOverlay(
+  //       Container(),
+  //           () => 'Condition: Clear\r\n${_child.key.toString()}',
+  //     );
+  //   } else if (_layoutCapture) {
+  //     return _buildWithDebugOverlay(
+  //       LayoutBuilder(
+  //         builder: (BuildContext context, BoxConstraints constraints) {
+  //           _constraints = constraints;
+  //           return _isIncomingLayer ? Container() : _child;
+  //         },
+  //       ),
+  //           () => 'Condition: Layout Capture\r\n${_child.key.toString()}',
+  //     );
+  //   } else if (_forceShowChild) {
+  //     return _buildWithDebugOverlay(
+  //       _child,
+  //           () => 'Condition: Force Show Child\r\n${_child.key.toString()}',
+  //     );
+  //   } else {
+  //     // Default to FutureBuilder
+  //     return _buildWithDebugOverlay(
+  //       FutureBuilder<void>(
+  //         future: _shaderReadyCompleter?.future,
+  //         builder: (context, snapshot) {
+  //           if (snapshot.connectionState == ConnectionState.done &&
+  //               _shader != null &&
+  //               widget.animation != null &&
+  //               !widget.animation!.isCompleted) {
+  //             if (_shaderMode == ShaderMode.mask) {
+  //               return ShaderMask(
+  //                 shaderCallback: (bounds) => _shader!,
+  //                 blendMode: _isOldWidget ^ _reverseAnimations ? BlendMode.dstOut : BlendMode.dstIn,
+  //                 child: _child,
+  //               );
+  //             } else if (_imageOfChild != null) {
+  //               return SizedBox(
+  //                 width: _imageOfChild!.width.toDouble() / _pixelRatio,
+  //                 height: _imageOfChild!.height / _pixelRatio,
+  //                 child: ShaderCanvas(
+  //                   shader: _shader!,
+  //                   key: ValueKey(_progress),
+  //                 ),
+  //               );
+  //             } else {
+  //               return _child; // Image not ready yet
+  //             }
+  //           } else {
+  //             debugPrint('Shader null = ${_shader == null}');
+  //             return const SizedBox.shrink(); // Shader not ready yet
+  //           }
+  //         },
+  //       ),
+  //           () {
+  //         if (_shader == null) {
+  //           return '${this.toString()}\r\nCondition: Shader is Null\r\n${_child.key.toString()}\r\n${widget.child.key.toString()}';
+  //         } else if (_shaderReadyCompleter == null) {
+  //           return '${this.toString()}\r\nCondition: FutureBuilder (Shader Not Ready)\r\n${_child.key.toString()}\r\n${widget.child.toString()}';
+  //         } else if (_shaderMode == ShaderMode.mask) {
+  //           return '${this.toString()}\r\nCondition: Shader Mask\r\n${_child.key.toString()}';
+  //         } else if (_imageOfChild != null) {
+  //           return '${this.toString()}\r\nCondition: Shader Canvas\r\n${_child.key.toString()}';
+  //         } else {
+  //           return '${this.toString()}\r\nCondition: Child without Shader\r\n${_child.key.toString()}';
+  //         }
+  //       },
+  //     );
+  //   }
+  // }
+
+  static double testTop = 10;
+  static double testLeft = 10;
+
+  Widget _buildWithDebugOverlay(Widget child, String Function() debugInfoCallback) {
+    if (testTop == 10){
+      testTop = 100;
+    }
+    else{
+      testTop = 10;
+    }
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          top: testTop,
+          left: testLeft,
+          child: IgnorePointer(
+            child: Container(
+              color: Colors.black.withOpacity(0.5),
+              padding: const EdgeInsets.all(8.0),
+              child: Builder(
+                builder: (context) => Text(
+                  debugInfoCallback(),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
